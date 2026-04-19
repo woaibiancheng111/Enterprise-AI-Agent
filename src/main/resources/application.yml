@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: health-ai-agent
+  profiles:
+    active: local
+server:
+  port: 8123
+  servlet:
+      context-path: /api
+
+# springdoc-openapi????
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.shixi.controller
+# knife4j???????????????
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+# ==================== RAG 增强配置 ====================
+rag:
+  hybrid-search:
+    # 向量检索返回数量
+    vector-top-k: 20
+    # 关键词检索返回数量
+    keyword-top-k: 20
+    # 最终返回数量
+    final-top-k: 5
+    # RRF 融合参数
+    rrf-k: 60
+    # 向量检索权重
+    vector-weight: 0.5
+    # 关键词检索权重
+    keyword-weight: 0.5
+    # 是否启用重排序
+    enable-rerank: true
+    # 是否启用查询改写
+    enable-query-rewrite: true
+  # 引用溯源
+  citation:
+    # 是否显示引用来源
+    enabled: true
+    # 最大显示引用数
+    max-citations: 3
+
+# ==================== 知识库配置 ====================
+knowledge:
+  base-path: src/main/resources/documents
