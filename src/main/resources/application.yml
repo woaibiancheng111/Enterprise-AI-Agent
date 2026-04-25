@@ -3,6 +3,11 @@ spring:
     name: health-ai-agent
   profiles:
     active: local
+  ai:
+    mcp:
+      server:
+        protocol: SSE
+        name: enterprise-mcp-server
 server:
   port: 8123
   servlet:

@@ -13,6 +13,7 @@ import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -29,6 +30,8 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 public class EnterpriseApp {
 
     private final ChatClient chatClient;
+    private final ChatClient chatClientWithTools;
+    
     private static final List<String> BLOCKED_WORDS = List.of(
             "薪资明细",
             "商业机密",
@@ -37,7 +40,7 @@ public class EnterpriseApp {
     );
 
     private static final String SYSTEM_PROMPT = """
-            你是“企业HR与行政AI助手”，专属服务于本公司内部员工。
+            你是"企业HR与行政AI助手"，专属服务于本公司内部员工。
             你的任务是快速、准确解答员工关于请假、报销、办公设施、福利等行政人事问题。
             
             对话要求：
@@ -53,13 +56,42 @@ public class EnterpriseApp {
             
             安全边界：
             1. 绝对不讨论其他员工薪水、公司机密及未公开财务状况。
-            2. 遇到此类打探直接回复：“抱歉，这属于公司保密信息，无法为您解答。”
+            2. 遇到此类打探直接回复："抱歉，这属于公司保密信息，无法为您解答。"
             """;
 
-    public EnterpriseApp(ChatModel dashscopeChatModel) {
+    private static final String SYSTEM_PROMPT_WITH_TOOLS = """
+            你是"企业HR与行政AI助手"，专属服务于本公司内部员工。
+            你的任务是快速、准确解答员工关于请假、报销、办公设施、福利等行政人事问题。
+            
+            你可以使用以下工具来帮助回答问题：
+            1. 时间工具：获取当前日期时间、计算日期差、计算工作日等
+            2. 员工服务工具：查询员工信息、申请请假、申请报销、查询假期余额等
+            3. 知识库检索工具：检索企业规章制度文档
+            
+            当用户询问以下问题时，请使用相应的工具：
+            - 涉及日期计算、工作日计算：使用时间工具
+            - 涉及请假申请、报销申请、员工信息查询：使用员工服务工具
+            - 涉及公司规章制度、政策查询：使用知识库检索工具
+            
+            对话要求：
+            1. 第一轮用简短、专业的语气自我介绍。
+            2. 回答需基于企业现有规章制度，不瞎编乱造。
+            3. 如果用户问题缺少必要信息（如未说明请哪种假、未说明报销类别），请进行1到2个追问（例如：所在部门、申请时长等）。
+            4. 如果问题超出HR/行政范畴（如IT网络故障），请礼貌引导至IT部门。
+            
+            输出风格：
+            1. 语气专业、热情、清晰，采用职场沟通风格。
+            2. 步骤类问题使用分点列表（如 1. 2. 3.）。
+            3. 默认控制篇幅，不超过200字；若遇复杂流程则重点突出第一步。
+            
+            安全边界：
+            1. 绝对不讨论其他员工薪水、公司机密及未公开财务状况。
+            2. 遇到此类打探直接回复："抱歉，这属于公司保密信息，无法为您解答。"
+            """;
+
+    public EnterpriseApp(ChatModel dashscopeChatModel, ToolCallbackProvider toolCallbackProvider) {
 
         ChatMemory chatMemory = new FileBasedChatMemory(Path.of("data","chat-memory"));
-
 
         this.chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
@@ -68,6 +100,16 @@ public class EnterpriseApp {
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
                         new MyLogAdvisor()
                 )
+                .build();
+        
+        this.chatClientWithTools = ChatClient.builder(dashscopeChatModel)
+                .defaultSystem(SYSTEM_PROMPT_WITH_TOOLS)
+                .defaultAdvisors(
+                        new BlockedWordAdvisor(BLOCKED_WORDS),
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new MyLogAdvisor()
+                )
+                .defaultTools(toolCallbackProvider)
                 .build();
     }
 
@@ -232,6 +274,47 @@ public class EnterpriseApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .advisors(new QuestionAnswerAdvisor(enterpriseAppVectorStore))
+                .stream()
+                .content();
+    }
+
+    // ==================== MCP 工具对话方法 ====================
+
+    /**
+     * 使用MCP工具进行对话（AI可以自动调用工具）
+     * @param message 用户消息
+     * @param chatId 会话ID
+     * @return AI回复
+     */
+    public String doChatWithTools(String message, String chatId) {
+        ChatResponse response = chatClientWithTools
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .call()
+                .chatResponse();
+
+        String content = null;
+        if (response != null) {
+            content = response.getResult().getOutput().getText();
+        }
+        log.info("content (with tools): {}", content);
+        return content;
+    }
+
+    /**
+     * 使用MCP工具进行流式对话
+     * @param message 用户消息
+     * @param chatId 会话ID
+     * @return 内容块的Flux流
+     */
+    public Flux<String> streamChatWithTools(String message, String chatId) {
+        return chatClientWithTools
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .stream()
                 .content();
     }
