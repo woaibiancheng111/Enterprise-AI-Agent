@@ -1,4 +1,4 @@
-export type ReadyCapability = "chat" | "rag-chat" | "ticket";
+export type ReadyCapability = "chat" | "rag-chat" | "ticket" | "tool-chat";
 
 export type CapabilityStatus = "ready" | "planned";
 

@@ -216,6 +216,11 @@ const quickPromptsMap: Record<ReadyCapability, string[]> = {
     "帮我生成一个办公用品申领工单",
     "帮我整理请假申请的处理工单",
     "帮我创建报销异常处理工单"
+  ],
+  "tool-chat": [
+    "帮我查询员工 E001 的基本信息",
+    "帮员工 E001 申请 3 天年假，开始日期 2026-05-01",
+    "今天是几号星期几？帮我算一下到月底还有多少个工作日"
   ]
 };
 const quickPrompts = computed(() => quickPromptsMap[selectedMode.value]);

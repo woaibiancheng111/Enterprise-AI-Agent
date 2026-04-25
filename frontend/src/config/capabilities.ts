@@ -20,15 +20,15 @@ export const CAPABILITIES: CapabilityDefinition[] = [
     status: "ready"
   },
   {
+    key: "tool-chat",
+    name: "智能工具调用",
+    description: "调用 /enterprise/tool-chat，AI 可自动调用时间工具、员工服务工具、知识库工具回答问题。",
+    status: "ready"
+  },
+  {
     key: "mcp",
     name: "MCP 集成",
     description: "后续可接入 MCP Server 与多 Agent 协作。",
-    status: "planned"
-  },
-  {
-    key: "tool-calling",
-    name: "工具调用",
-    description: "后续可接入 Tool Calling、函数执行与工作流编排。",
     status: "planned"
   }
 ];
