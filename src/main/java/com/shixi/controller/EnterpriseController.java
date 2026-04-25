@@ -75,4 +75,32 @@ public class EnterpriseController {
                                 .build()
                 ));
     }
+
+    // ==================== MCP 工具对话接口 ====================
+
+    @GetMapping("/tool-chat")
+    public String toolChat(
+            @RequestParam String message,
+            @RequestParam(defaultValue = "default-user") String chatId) {
+        return enterpriseApp.doChatWithTools(message, chatId);
+    }
+
+    @GetMapping(value = "/tool-chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> toolChatStream(
+            @RequestParam String message,
+            @RequestParam(defaultValue = "default-user") String chatId) {
+        return enterpriseApp.streamChatWithTools(message, chatId)
+                .map(content -> ServerSentEvent.<String>builder()
+                        .id("1")
+                        .event("chunk")
+                        .data(content)
+                        .build())
+                .concatWith(Flux.just(
+                        ServerSentEvent.<String>builder()
+                                .id("end")
+                                .event("done")
+                                .data("[DONE]")
+                                .build()
+                ));
+    }
 }
