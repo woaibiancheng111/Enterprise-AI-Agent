@@ -11,7 +11,8 @@ const http = axios.create({
 const endpointMap: Record<ReadyCapability, string> = {
   chat: "/enterprise/chat",
   "rag-chat": "/enterprise/rag-chat",
-  ticket: "/enterprise/ticket"
+  ticket: "/enterprise/ticket",
+  "tool-chat": "/enterprise/tool-chat"
 };
 
 export async function checkHealth(): Promise<string> {
@@ -44,7 +45,8 @@ export type StreamErrorCallback = (error: Error) => void;
 const streamEndpointMap: Record<ReadyCapability, string> = {
   chat: "/enterprise/chat/stream",
   "rag-chat": "/enterprise/rag-chat/stream",
-  ticket: "/enterprise/ticket"
+  ticket: "/enterprise/ticket",
+  "tool-chat": "/enterprise/tool-chat/stream"
 };
 
 export interface StreamOptions {

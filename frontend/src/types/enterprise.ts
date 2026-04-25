@@ -1,9 +1,9 @@
-export type ReadyCapability = "chat" | "rag-chat" | "ticket";
+export type ReadyCapability = "chat" | "rag-chat" | "ticket" | "tool-chat";
 
 export type CapabilityStatus = "ready" | "planned";
 
 export interface CapabilityDefinition {
-  key: ReadyCapability | "mcp" | "tool-calling";
+  key: ReadyCapability | "mcp";
   name: string;
   description: string;
   status: CapabilityStatus;
