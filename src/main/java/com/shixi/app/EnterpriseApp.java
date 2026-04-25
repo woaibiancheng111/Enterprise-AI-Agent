@@ -3,6 +3,9 @@ package com.shixi.app;
 import com.shixi.advisor.BlockedWordAdvisor;
 import com.shixi.advisor.MyLogAdvisor;
 import com.shixi.memory.FileBasedChatMemory;
+import com.shixi.mcp.EmployeeServiceTools;
+import com.shixi.mcp.KnowledgeBaseTools;
+import com.shixi.mcp.TimeTools;
 import com.shixi.rag.model.SearchResult;
 import com.shixi.rag.service.EnhancedRagService;
 import jakarta.annotation.Resource;
@@ -13,7 +16,7 @@ import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -89,7 +92,11 @@ public class EnterpriseApp {
             2. 遇到此类打探直接回复："抱歉，这属于公司保密信息，无法为您解答。"
             """;
 
-    public EnterpriseApp(ChatModel dashscopeChatModel, ToolCallbackProvider toolCallbackProvider) {
+    public EnterpriseApp(
+            ChatModel dashscopeChatModel,
+            TimeTools timeTools,
+            EmployeeServiceTools employeeServiceTools,
+            KnowledgeBaseTools knowledgeBaseTools) {
 
         ChatMemory chatMemory = new FileBasedChatMemory(Path.of("data","chat-memory"));
 
@@ -109,7 +116,11 @@ public class EnterpriseApp {
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
                         new MyLogAdvisor()
                 )
-                .defaultTools(toolCallbackProvider)
+                .defaultTools(MethodToolCallbackProvider.builder()
+                        .toolObjects(timeTools)
+                        .toolObjects(employeeServiceTools)
+                        .toolObjects(knowledgeBaseTools)
+                        .build())
                 .build();
     }
 
