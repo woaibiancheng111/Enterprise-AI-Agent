@@ -1,77 +1,178 @@
 # Enterprise AI Agent
 
-企业级 HR & 行政事务智能助手，基于 Spring Boot + Spring AI Alibaba 构建，提供智能问答、RAG 知识库检索、会话记忆与结构化工单生成能力。
+企业级 HR 与行政事务智能助手，基于 Spring Boot、Spring AI Alibaba、Vue 3 和 MCP 构建。项目面向真实员工服务台场景，支持自然语言咨询、制度检索、结构化工单、业务工具调用、多 Agent 协作和 MCP 工具集成。
 
 > 当前版本：**0.0.1-SNAPSHOT**
 
 ---
 
-## 功能特性
+## 项目亮点
 
-- **智能问答** - 基于企业知识库的自然语言问答，覆盖请假、报销、福利、考勤、离职、绩效、办公设施、信息安全等场景
-- **RAG 知识库** - 混合检索（向量 + BM25 + RRF 重排序），支持文档上传、删除与动态重载
-- **查询改写** - 同义词扩展、拼写纠正、停用词过滤，提升检索召回率
-- **意图识别** - 自动识别 6 类用户意图：政策查询、流程申请、状态咨询、意见反馈、一般咨询
-- **会话记忆** - Kryo 序列化文件持久化，支持跨重启的对话连续性
-- **敏感词过滤** - 敏感词拦截、请求响应日志、查询增强等拦截器链
-- **流式输出** - 支持 SSE 流式响应，提升交互体验
-- **结构化工单** - 将对话内容转换为结构化 `EmployeeTicket` 对象，便于接入工单系统
+- **数字团队协作**：通过“综合办理”入口自动判断用户诉求，编排知识库、业务工具、工单整理等能力，返回可解释的处理过程。
+- **智能工具调用**：支持员工信息、假期余额、请假申请、报销、工作日计算等企业业务工具，并提供确定性编排兜底，提升调用稳定性。
+- **MCP 集成**：内置企业 MCP 工具服务，可查询服务状态、工具清单，并通过统一接口执行工具调用。
+- **RAG 知识库问答**：混合检索（向量 + BM25 + RRF 重排序），支持查询改写、意图识别、引用来源和流式响应。
+- **用户级前端体验**：Vue 3 工作台提供多能力入口、流式回答、知识库上传、MCP 状态展示、处理过程折叠卡片和参考来源折叠卡片。
+- **会话记忆**：基于 Kryo 文件持久化对话历史，支持跨重启的上下文连续性。
+
+---
+
+## 已实现能力
+
+| 能力 | 说明 |
+|------|------|
+| 综合办理 | 多 Agent 数字团队入口，自动路由和组合处理复杂事务 |
+| 日常咨询 | 面向 HR、行政、办公场景的通用问答 |
+| 制度查询 | 基于企业知识库进行 RAG 问答，并返回参考来源 |
+| 工单整理 | 将员工诉求整理为结构化 `EmployeeTicket` |
+| 业务工具 | 调用员工、假期、请假、报销、时间计算和知识库工具 |
+| MCP 集成 | 暴露 MCP 状态、工具列表、对话和工具调用接口 |
+| 知识库管理 | 支持文档列表、上传、删除和动态重载 |
+| 流式输出 | 支持 SSE 流式响应，提升前端交互体验 |
 
 ---
 
 ## 技术栈
 
-| 组件 | 技术 |
+| 模块 | 技术 |
 |------|------|
-| 框架 | Spring Boot 3.5.11 |
+| 后端框架 | Spring Boot 3.5.11 |
 | 运行时 | Java 21 |
 | AI 集成 | Spring AI 1.0.0-M6 + Spring AI Alibaba 1.0.0-M6.1 |
 | 大模型 | 阿里云 DashScope（Qwen 系列） |
-| 文档解析 | Spring AI Markdown 文档加载器 |
-| 向量存储 | Spring AI SimpleVectorStore（内存向量数据库） |
-| 序列化 | Kryo 5.6.2 |
+| MCP | Spring AI MCP Server + 本地工具桥接 |
+| RAG | SimpleVectorStore、BM25、RRF、Rerank、Query Rewrite |
+| 前端 | Vue 3、Vite、TypeScript、Axios |
+| Markdown 渲染 | marked + DOMPurify |
+| 会话存储 | Kryo 5.6.2 |
 | API 文档 | Springdoc OpenAPI + Knife4j |
-| 工具库 | Hutool 5.8.38 |
-| 构建工具 | Maven |
+| 构建工具 | Maven、npm |
 
 ---
 
 ## 项目结构
 
+```text
+.
+├── frontend/                              # Vue 3 前端工作台
+│   └── src/
+│       ├── components/                    # 知识库上传等组件
+│       ├── config/capabilities.ts         # 前端能力入口配置
+│       ├── services/enterpriseApi.ts      # 后端 API 与流式请求封装
+│       ├── types/enterprise.ts            # 前端业务类型
+│       └── views/AgentWorkbench.vue       # 智能助手主界面
+├── src/main/java/com/shixi/
+│   ├── app/
+│   │   └── EnterpriseApp.java             # 核心对话、RAG、工具调用入口
+│   ├── agent/
+│   │   ├── DigitalTeamService.java        # 数字团队编排
+│   │   ├── McpIntegrationService.java     # MCP 集成服务
+│   │   └── ToolOrchestrationService.java  # 确定性工具编排兜底
+│   ├── controller/
+│   │   ├── EnterpriseController.java      # 企业助手接口
+│   │   ├── McpController.java             # MCP 状态、工具和调用接口
+│   │   ├── KnowledgeBaseController.java   # 知识库管理接口
+│   │   └── EnhancedRagController.java     # 增强 RAG 接口
+│   ├── mcp/
+│   │   ├── EmployeeServiceTools.java      # 员工与业务工具
+│   │   ├── KnowledgeBaseTools.java        # 知识库工具
+│   │   ├── TimeTools.java                 # 时间与工作日工具
+│   │   └── config/McpServerConfig.java    # MCP 工具注册配置
+│   ├── rag/                               # 检索、改写、重排与 RAG 编排
+│   ├── advisor/                           # 日志、敏感词、查询增强 Advisor
+│   ├── memory/                            # 文件会话记忆
+│   └── service/                           # 文档上传处理
+└── src/main/resources/
+    ├── application.yml                    # 服务、MCP、RAG 配置
+    └── documents/                         # 预置企业知识库文档
 ```
-src/main/java/com/shixi/
-├── EnterpriseAiAgentApplication.java     # Spring Boot 启动类
-├── app/
-│   └── EnterpriseApp.java               # 核心聊天逻辑（ChatResponse）
-├── controller/
-│   ├── EnterpriseController.java        # 基础对话接口
-│   ├── KnowledgeBaseController.java     # 知识库管理接口
-│   └── EnhancedRagController.java       # 增强 RAG 接口
-├── rag/
-│   ├── model/
-│   │   ├── HybridSearchConfig.java      # 混合检索配置模型
-│   │   ├── SearchResult.java            # 检索结果模型
-│   │   └── RetrievalContext.java        # RAG 上下文模型
-│   └── service/
-│       ├── EnhancedRagService.java      # RAG 核心编排
-│       ├── HybridSearchService.java     # 混合检索（向量 + BM25 + RRF）
-│       ├── RerankService.java           # 结果重排序
-│       └── QueryRewriter.java           # 查询改写与意图识别
-├── advisor/
-│   ├── BlockedWordAdvisor.java         # 敏感词拦截
-│   ├── MyLogAdvisor.java               # 请求日志
-│   └── ReReadingAdvisor.java            # 查询重复增强
-├── memory/
-│   └── FileBasedChatMemory.java         # Kryo 文件会话存储
-└── service/
-    └── DocumentUploadService.java       # 文档上传处理
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- JDK 21+
+- Maven 3.9+
+- Node.js 18+
+- npm 9+
+- 阿里云 DashScope API Key（[获取地址](https://dashscope.console.aliyun.com/)）
+
+### 后端配置
+
+创建或修改 `src/main/resources/application-local.yml`：
+
+```yaml
+spring:
+  ai:
+    dashscope:
+      api-key: your-api-key-here
+      chat-options:
+        model: qwen-flash
 ```
+
+默认后端端口为 `8123`，接口统一挂载在 `/api`：
+
+```yaml
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+```
+
+### 启动后端
+
+```bash
+./mvnw spring-boot:run
+```
+
+或构建后运行：
+
+```bash
+./mvnw clean package -DskipTests
+java -jar target/enterprise-ai-agent-0.0.1-SNAPSHOT.jar
+```
+
+### 启动前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端默认访问地址：
+
+```text
+http://localhost:5173/
+```
+
+如需修改前端请求后端地址，可配置：
+
+```bash
+VITE_API_BASE_PATH=/api
+```
+
+---
+
+## 前端功能
+
+前端主界面位于 `frontend/src/views/AgentWorkbench.vue`，当前提供：
+
+- 左侧能力入口：综合办理、日常咨询、制度查询、工单整理、业务工具、MCP 集成。
+- 消息区 Markdown 渲染与安全过滤。
+- 支持 SSE 流式回答。
+- 数字团队处理过程折叠卡片。
+- 参考来源折叠卡片，点击展开，再次点击收起。
+- MCP 服务状态和工具数量展示。
+- 知识库文档上传、删除和刷新。
 
 ---
 
 ## API 接口
 
-### 基础对话
+### 企业助手
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
@@ -79,8 +180,20 @@ src/main/java/com/shixi/
 | GET | `/api/enterprise/chat` | 基础对话（含记忆） |
 | GET | `/api/enterprise/rag-chat` | 知识库增强对话 |
 | GET | `/api/enterprise/ticket` | 生成结构化工单 |
-| GET | `/api/enterprise/chat/stream` | 流式对话 |
-| GET | `/api/enterprise/rag-chat/stream` | 流式知识库对话 |
+| GET | `/api/enterprise/team-chat` | 数字团队综合办理 |
+| GET | `/api/enterprise/tool-chat` | 企业业务工具对话 |
+| GET | `/api/enterprise/chat/stream` | 基础流式对话 |
+| GET | `/api/enterprise/rag-chat/stream` | RAG 流式对话 |
+| GET | `/api/enterprise/tool-chat/stream` | 工具调用流式对话 |
+
+### MCP 集成
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/api/mcp/status` | MCP 服务状态、工具数量和领域 |
+| GET | `/api/mcp/tools` | MCP 工具列表 |
+| GET | `/api/mcp/chat` | MCP 工具增强对话 |
+| POST | `/api/mcp/call` | 按工具名称直接调用 MCP 工具 |
 
 ### 增强 RAG
 
@@ -101,7 +214,81 @@ src/main/java/com/shixi/
 | DELETE | `/api/knowledge/file/{filename}` | 删除文档 |
 | POST | `/api/knowledge/reload` | 重载知识库 |
 
-> API 文档地址：`http://localhost:8123/swagger-ui.html`
+API 文档地址：
+
+```text
+http://localhost:8123/api/swagger-ui.html
+```
+
+---
+
+## 示例请求
+
+```bash
+# 数字团队综合办理
+curl "http://localhost:8123/api/enterprise/team-chat?message=我想申请明天下午年假，帮我看看余额并处理"
+
+# 业务工具调用
+curl "http://localhost:8123/api/enterprise/tool-chat?message=查询员工E001的假期余额"
+
+# MCP 服务状态
+curl "http://localhost:8123/api/mcp/status"
+
+# MCP 工具增强对话
+curl "http://localhost:8123/api/mcp/chat?message=查询员工E001的信息"
+
+# 知识库对话
+curl "http://localhost:8123/api/enterprise/rag-chat?message=如何申请年假"
+
+# 上传知识库文档
+curl -X POST "http://localhost:8123/api/knowledge/upload" \
+  -F "file=@/path/to/your/document.md"
+```
+
+---
+
+## RAG 工作流程
+
+```text
+用户查询
+  │
+  ▼
+QueryRewriter
+  │
+  ├─ 意图识别
+  ├─ 同义词扩展
+  ├─ 拼写纠正
+  └─ 停用词过滤
+  │
+  ▼
+混合检索
+  ├─ 向量相似度检索
+  └─ BM25 关键词检索
+  │
+  ▼
+RRF 融合 + Rerank 重排序
+  │
+  ▼
+LLM 生成回复
+  │
+  ▼
+引用来源 / 流式响应 / 结构化结果
+```
+
+---
+
+## MCP 与工具能力
+
+项目将企业工具统一注册到 MCP 工具服务中，当前覆盖：
+
+- 员工信息查询
+- 假期余额查询
+- 请假申请
+- 报销申请
+- 日期与工作日计算
+- 知识库查询
+
+`ToolOrchestrationService` 会根据用户输入进行确定性意图匹配和参数提取，在模型工具调用失败或不稳定时提供兜底执行路径。
 
 ---
 
@@ -122,111 +309,25 @@ src/main/java/com/shixi/
 
 ---
 
-## 快速开始
-
-### 环境要求
-
-- JDK 21+
-- Maven 3.9+
-- 阿里云 DashScope API Key（[获取地址](https://dashscope.console.aliyun.com/)）
-
-### 配置
-
-创建或修改 `src/main/resources/application-local.yml`：
-
-```yaml
-spring:
-  ai:
-    dashscope:
-      api-key: your-api-key-here
-      chat-options:
-        model: qwen-flash
-```
-
-### 构建与运行
-
-```bash
-# 构建
-mvn clean package -DskipTests
-
-# 运行
-java -jar target/enterprise-ai-agent-0.0.1-SNAPSHOT.jar
-```
-
-服务启动后访问：
-- API 地址：http://localhost:8123/api
-- Swagger 文档：http://localhost:8123/swagger-ui.html
-
-### 示例请求
-
-```bash
-# 基础对话
-curl "http://localhost:8123/api/enterprise/chat?message=%E5%B9%B4%E5%81%87%E5%A4%9A%E5%B0%91%E5%A4%A9"
-
-# 知识库对话
-curl "http://localhost:8123/api/enterprise/rag-chat?message=%E5%A6%82%E4%BD%95%E7%94%B3%E8%AF%B7%E5%B9%B4%E5%81%87"
-
-# 意图识别
-curl "http://localhost:8123/api/rag/intent?query=%E6%88%91%E6%83%B3%E7%94%B3%E8%AF%B7%E4%B8%80%E5%A4%A9%E5%B9%B4%E5%81%87"
-
-# 查询改写
-curl "http://localhost:8123/api/rag/rewrite?query=%E5%B9%B4%E5%81%87%E6%80%8E%E4%B9%88%E7%94%B3"
-
-# 上传文档
-curl -X POST "http://localhost:8123/api/knowledge/upload" \
-  -F "file=@/path/to/your/document.md"
-```
-
----
-
-## RAG 工作流程
-
-```
-用户查询
-    │
-    ▼
-┌─────────────┐     ┌─────────────────┐
-│ QueryRewriter │ ──▶│ 意图识别 + 查询改写 │
-└─────────────┘     └────────┬────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-      ┌──────────────┐ ┌──────────┐ ┌──────────────┐
-      │ 向量相似度检索 │ │BM25 关键词│ │  参考资料生成 │
-      └──────┬───────┘ └────┬─────┘ └──────────────┘
-             │               │
-             └───────┬───────┘
-                     ▼
-            ┌────────────────┐
-            │ RRF 结果融合   │
-            └───────┬────────┘
-                    ▼
-            ┌────────────────┐
-            │  Rerank 重排序  │
-            └───────┬────────┘
-                    ▼
-            ┌────────────────┐
-            │ LLM 生成回复    │
-            └───────┬────────┘
-                    ▼
-              流式响应 / 结构化工单
-```
-
----
-
 ## 会话存储
 
-对话历史通过 Kryo 序列化存储于 `data/chat-memory/` 目录，每个会话对应一个独立的 `.kryo` 文件，基于会话 ID 进行线程安全隔离。
+对话历史通过 Kryo 序列化存储于 `data/chat-memory/` 目录。每个会话对应一个独立 `.kryo` 文件，基于会话 ID 做线程安全隔离。
 
 ---
 
-## 系统提示词
+## 开发与验证
 
-助手扮演专业 HR 助理角色，具备以下能力：
-- 回答公司制度相关问题
-- 引导员工完成各项流程申请
-- 对薪资、机密、领导隐私等敏感信息保密
-- 生成结构化工单以便后续处理
+```bash
+# 后端测试
+./mvnw test
+
+# 后端编译
+./mvnw -DskipTests compile
+
+# 前端类型检查与构建
+cd frontend
+npm run build
+```
 
 ---
 

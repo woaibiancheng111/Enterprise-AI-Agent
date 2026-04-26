@@ -2,6 +2,7 @@ package com.shixi.app;
 
 import com.shixi.advisor.BlockedWordAdvisor;
 import com.shixi.advisor.MyLogAdvisor;
+import com.shixi.agent.ToolOrchestrationService;
 import com.shixi.memory.FileBasedChatMemory;
 import com.shixi.mcp.EmployeeServiceTools;
 import com.shixi.mcp.KnowledgeBaseTools;
@@ -34,6 +35,7 @@ public class EnterpriseApp {
 
     private final ChatClient chatClient;
     private final ChatClient chatClientWithTools;
+    private final ToolOrchestrationService toolOrchestrationService;
     
     private static final List<String> BLOCKED_WORDS = List.of(
             "薪资明细",
@@ -128,7 +130,10 @@ public class EnterpriseApp {
             ChatModel dashscopeChatModel,
             TimeTools timeTools,
             EmployeeServiceTools employeeServiceTools,
-            KnowledgeBaseTools knowledgeBaseTools) {
+            KnowledgeBaseTools knowledgeBaseTools,
+            ToolOrchestrationService toolOrchestrationService) {
+
+        this.toolOrchestrationService = toolOrchestrationService;
 
         ChatMemory chatMemory = new FileBasedChatMemory(Path.of("data","chat-memory"));
 
@@ -149,9 +154,7 @@ public class EnterpriseApp {
                         new MyLogAdvisor()
                 )
                 .defaultTools(MethodToolCallbackProvider.builder()
-                        .toolObjects(timeTools)
-                        .toolObjects(employeeServiceTools)
-                        .toolObjects(knowledgeBaseTools)
+                        .toolObjects(timeTools, employeeServiceTools, knowledgeBaseTools)
                         .build())
                 .build();
     }
@@ -330,20 +333,38 @@ public class EnterpriseApp {
      * @return AI回复
      */
     public String doChatWithTools(String message, String chatId) {
-        ChatResponse response = chatClientWithTools
-                .prompt()
-                .user(message)
-                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .call()
-                .chatResponse();
+        return toolOrchestrationService.tryHandle(message)
+                .orElseGet(() -> doChatWithLlmTools(message, chatId));
+    }
 
-        String content = null;
-        if (response != null) {
-            content = response.getResult().getOutput().getText();
+    private String doChatWithLlmTools(String message, String chatId) {
+        try {
+            ChatResponse response = chatClientWithTools
+                    .prompt()
+                    .user(message)
+                    .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                    .call()
+                    .chatResponse();
+
+            String content = null;
+            if (response != null) {
+                content = response.getResult().getOutput().getText();
+            }
+            log.info("content (with tools): {}", content);
+            return content;
+        } catch (Exception e) {
+            log.warn("LLM 工具调用失败，已返回兜底提示: {}", e.getMessage());
+            return """
+                    智能工具调用暂时无法完成该请求。
+
+                    你可以尝试补充更明确的工具参数，例如：
+                    - 查询员工：`帮我查询员工 E001 的基本信息`
+                    - 查询假期：`查询员工 E001 的假期余额`
+                    - 申请请假：`帮员工 E001 申请 3 天年假，开始日期 2026-05-01`
+                    - 日期计算：`今天是星期几，到月底还有多少个工作日`
+                    """;
         }
-        log.info("content (with tools): {}", content);
-        return content;
     }
 
     /**
@@ -353,12 +374,6 @@ public class EnterpriseApp {
      * @return 内容块的Flux流
      */
     public Flux<String> streamChatWithTools(String message, String chatId) {
-        return chatClientWithTools
-                .prompt()
-                .user(message)
-                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .stream()
-                .content();
+        return Flux.just(doChatWithTools(message, chatId));
     }
 }

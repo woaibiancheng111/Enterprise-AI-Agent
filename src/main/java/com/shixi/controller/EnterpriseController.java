@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.shixi.agent.DigitalTeamService;
 import com.shixi.app.EnterpriseApp;
 import jakarta.annotation.Resource;
 import reactor.core.publisher.Flux;
@@ -16,6 +17,9 @@ public class EnterpriseController {
 
     @Resource
     private EnterpriseApp enterpriseApp;
+
+    @Resource
+    private DigitalTeamService digitalTeamService;
 
     @GetMapping("/health")
     public String healthCheck() {
@@ -35,6 +39,14 @@ public class EnterpriseController {
     @GetMapping("/ticket")
     public Object generateTicket(@RequestParam String message, @RequestParam(defaultValue = "default-user") String chatId) {
         return enterpriseApp.doChatWithReport(message, chatId);
+    }
+
+    @GetMapping("/team-chat")
+    public DigitalTeamService.DigitalTeamResponse teamChat(
+            @RequestParam String message,
+            @RequestParam(defaultValue = "default-user") String chatId,
+            @RequestParam(defaultValue = "5") int topK) {
+        return digitalTeamService.process(message, chatId, topK);
     }
 
     @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

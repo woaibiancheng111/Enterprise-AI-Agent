@@ -1,5 +1,12 @@
 import axios from "axios";
-import type { ReadyCapability, TicketResponse } from "../types/enterprise";
+import type {
+  DigitalTeamResponse,
+  McpChatResponse,
+  McpStatus,
+  McpToolCard,
+  ReadyCapability,
+  TicketResponse
+} from "../types/enterprise";
 
 const API_BASE_PATH = import.meta.env.VITE_API_BASE_PATH || "/api";
 
@@ -9,10 +16,12 @@ const http = axios.create({
 });
 
 const endpointMap: Record<ReadyCapability, string> = {
+  "team-chat": "/enterprise/team-chat",
   chat: "/enterprise/chat",
   "rag-chat": "/enterprise/rag-chat",
   ticket: "/enterprise/ticket",
-  "tool-chat": "/enterprise/tool-chat"
+  "tool-chat": "/enterprise/tool-chat",
+  mcp: "/mcp/chat"
 };
 
 export async function checkHealth(): Promise<string> {
@@ -35,7 +44,26 @@ export async function requestEnterprise(
   if (typeof data === "string") {
     return data;
   }
+  if (typeof data === "object" && data !== null && "content" in data) {
+    const mcpData = data as unknown as McpChatResponse;
+    return `${mcpData.content}\n\n---\n${mcpData.trace}`;
+  }
   return JSON.stringify(data, null, 2);
+}
+
+export async function requestDigitalTeam(
+  message: string,
+  chatId: string,
+  topK: number
+): Promise<DigitalTeamResponse> {
+  const { data } = await http.get<DigitalTeamResponse>("/enterprise/team-chat", {
+    params: {
+      message,
+      chatId,
+      topK
+    }
+  });
+  return data;
 }
 
 export type StreamCallback = (chunk: string) => void;
@@ -43,11 +71,23 @@ export type StreamDoneCallback = (fullContent: string) => void;
 export type StreamErrorCallback = (error: Error) => void;
 
 const streamEndpointMap: Record<ReadyCapability, string> = {
+  "team-chat": "/enterprise/team-chat",
   chat: "/enterprise/chat/stream",
   "rag-chat": "/enterprise/rag-chat/stream",
   ticket: "/enterprise/ticket",
-  "tool-chat": "/enterprise/tool-chat/stream"
+  "tool-chat": "/enterprise/tool-chat/stream",
+  mcp: "/mcp/chat"
 };
+
+export async function getMcpStatus(): Promise<McpStatus> {
+  const { data } = await http.get<McpStatus>("/mcp/status");
+  return data;
+}
+
+export async function listMcpTools(): Promise<McpToolCard[]> {
+  const { data } = await http.get<{ success: boolean; tools: McpToolCard[] }>("/mcp/tools");
+  return data.tools;
+}
 
 export interface StreamOptions {
   onChunk?: StreamCallback;

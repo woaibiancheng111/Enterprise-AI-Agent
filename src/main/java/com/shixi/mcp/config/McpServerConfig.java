@@ -3,7 +3,6 @@ package com.shixi.mcp.config;
 import com.shixi.mcp.EmployeeServiceTools;
 import com.shixi.mcp.KnowledgeBaseTools;
 import com.shixi.mcp.TimeTools;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
@@ -19,9 +18,7 @@ public class McpServerConfig {
             KnowledgeBaseTools knowledgeBaseTools) {
         
         return MethodToolCallbackProvider.builder()
-                .toolObjects(timeTools)
-                .toolObjects(employeeServiceTools)
-                .toolObjects(knowledgeBaseTools)
+                .toolObjects(timeTools, employeeServiceTools, knowledgeBaseTools)
                 .build();
     }
 }

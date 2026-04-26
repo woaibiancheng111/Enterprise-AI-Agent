@@ -6,8 +6,12 @@ spring:
   ai:
     mcp:
       server:
-        protocol: SSE
+        enabled: true
         name: enterprise-mcp-server
+        version: 0.0.1
+        type: SYNC
+        sse-message-endpoint: /mcp/message
+        tool-change-notification: true
 server:
   port: 8123
   servlet:
