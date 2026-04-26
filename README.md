@@ -41,6 +41,7 @@
 | AI 集成 | Spring AI 1.0.0-M6 + Spring AI Alibaba 1.0.0-M6.1 |
 | 大模型 | 阿里云 DashScope（Qwen 系列） |
 | MCP | Spring AI MCP Server + 本地工具桥接 |
+| 业务数据 | Spring Data JPA + H2 文件数据库（可切换 MySQL/PostgreSQL） |
 | RAG | SimpleVectorStore、BM25、RRF、Rerank、Query Rewrite |
 | 前端 | Vue 3、Vite、TypeScript、Axios |
 | Markdown 渲染 | marked + DOMPurify |
@@ -64,6 +65,11 @@
 ├── src/main/java/com/shixi/
 │   ├── app/
 │   │   └── EnterpriseApp.java             # 核心对话、RAG、工具调用入口
+│   ├── business/
+│   │   ├── entity/                        # 员工、假期、请假、报销实体
+│   │   ├── repository/                    # Spring Data JPA Repository
+│   │   ├── service/                       # 真实业务数据服务
+│   │   └── config/                        # 本地首次启动数据初始化
 │   ├── agent/
 │   │   ├── DigitalTeamService.java        # 数字团队编排
 │   │   ├── McpIntegrationService.java     # MCP 集成服务
@@ -120,6 +126,27 @@ server:
   servlet:
     context-path: /api
 ```
+
+默认业务数据库使用文件型 H2，数据会持久化在 `data/enterprise-agent.*`：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/enterprise-agent;MODE=MySQL;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+```
+
+本地 H2 控制台地址：
+
+```text
+http://localhost:8123/api/h2-console
+```
+
+生产环境可替换为 MySQL 或 PostgreSQL 连接，只需要改 `spring.datasource.*` 并加入对应数据库驱动。
 
 ### 启动后端
 
@@ -289,6 +316,30 @@ LLM 生成回复
 - 知识库查询
 
 `ToolOrchestrationService` 会根据用户输入进行确定性意图匹配和参数提取，在模型工具调用失败或不稳定时提供兜底执行路径。
+
+---
+
+## 业务数据持久化
+
+第一阶段已将员工、假期、请假和报销从内存模拟数据迁移到数据库：
+
+| 数据 | 存储表 | 说明 |
+|------|--------|------|
+| 员工信息 | `employees` | 员工 ID、姓名、部门、职位、邮箱、电话、入职日期 |
+| 假期余额 | `leave_balances` | 年假、病假、婚假、产假余额 |
+| 请假申请 | `leave_applications` | 申请编号、员工、假期类型、起止日期、状态 |
+| 报销申请 | `reimbursement_applications` | 申请编号、员工、类型、金额、发票号、状态 |
+
+工具层调用链路：
+
+```text
+EmployeeServiceTools
+  -> EmployeeBusinessService
+  -> Spring Data JPA Repository
+  -> H2 / MySQL / PostgreSQL
+```
+
+`EnterpriseDataInitializer` 会在数据库为空时写入一批本地演示员工和假期余额。后续通过工具提交的请假、报销申请会真实写入数据库，应用重启后仍可查询。
 
 ---
 
