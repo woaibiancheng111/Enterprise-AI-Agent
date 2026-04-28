@@ -5,6 +5,10 @@ import com.shixi.business.entity.LeaveApplicationEntity;
 import com.shixi.business.entity.LeaveBalanceEntity;
 import com.shixi.business.entity.ReimbursementApplicationEntity;
 import com.shixi.business.service.EmployeeBusinessService;
+import com.shixi.business.service.ToolAuditService;
+import com.shixi.security.CurrentUser;
+import com.shixi.security.CurrentUserContext;
+import com.shixi.security.ForbiddenException;
 import lombok.Data;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -12,7 +16,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class EmployeeServiceTools {
@@ -20,37 +26,51 @@ public class EmployeeServiceTools {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final EmployeeBusinessService employeeBusinessService;
+    private final ToolAuditService toolAuditService;
 
-    public EmployeeServiceTools(EmployeeBusinessService employeeBusinessService) {
+    public EmployeeServiceTools(EmployeeBusinessService employeeBusinessService, ToolAuditService toolAuditService) {
         this.employeeBusinessService = employeeBusinessService;
+        this.toolAuditService = toolAuditService;
     }
 
     @Tool(description = "根据员工ID查询员工基本信息")
     public EmployeeInfo getEmployeeInfo(
             @ToolParam(description = "员工ID，如 E001", required = true) String employeeId) {
-        return employeeBusinessService.findEmployee(employeeId)
+        assertCanAccessEmployee(employeeId);
+        EmployeeInfo result = employeeBusinessService.findEmployee(employeeId)
                 .map(this::toEmployeeInfo)
                 .orElse(null);
+        audit("getEmployeeInfo", employeeId, input("employeeId", employeeId), result, result != null);
+        return result;
     }
 
     @Tool(description = "根据员工姓名查询员工ID列表（可能有重名）")
     public List<String> findEmployeeIdsByName(
             @ToolParam(description = "员工姓名", required = true) String name) {
-        return employeeBusinessService.findEmployeeIdsByName(name);
+        assertHrOrAdmin();
+        List<String> result = employeeBusinessService.findEmployeeIdsByName(name);
+        audit("findEmployeeIdsByName", null, input("name", name), result, true);
+        return result;
     }
 
     @Tool(description = "查询指定部门的所有员工ID列表")
     public List<String> getEmployeesByDepartment(
             @ToolParam(description = "部门名称，如 技术部、人事部", required = true) String department) {
-        return employeeBusinessService.findEmployeeIdsByDepartment(department);
+        assertHrOrAdmin();
+        List<String> result = employeeBusinessService.findEmployeeIdsByDepartment(department);
+        audit("getEmployeesByDepartment", null, input("department", department), result, true);
+        return result;
     }
 
     @Tool(description = "查询员工的假期余额，包括年假、病假、婚假、产假等")
     public LeaveBalanceInfo getLeaveBalance(
             @ToolParam(description = "员工ID", required = true) String employeeId) {
-        return employeeBusinessService.findLeaveBalance(employeeId)
+        assertCanAccessEmployee(employeeId);
+        LeaveBalanceInfo result = employeeBusinessService.findLeaveBalance(employeeId)
                 .map(this::toLeaveBalanceInfo)
                 .orElse(null);
+        audit("getLeaveBalance", employeeId, input("employeeId", employeeId), result, result != null);
+        return result;
     }
 
     @Tool(description = "申请请假，返回申请结果和申请ID")
@@ -60,27 +80,45 @@ public class EmployeeServiceTools {
             @ToolParam(description = "开始日期，格式为 yyyy-MM-dd", required = true) String startDate,
             @ToolParam(description = "结束日期，格式为 yyyy-MM-dd", required = true) String endDate,
             @ToolParam(description = "请假原因", required = true) String reason) {
+        assertCanAccessEmployee(employeeId);
         LocalDate start = LocalDate.parse(startDate, DATE_FORMATTER);
         LocalDate end = LocalDate.parse(endDate, DATE_FORMATTER);
         EmployeeBusinessService.LeaveApplicationResult result =
                 employeeBusinessService.applyLeave(employeeId, leaveType, start, end, reason);
-        return new LeaveApplicationResult(result.success(), result.message(), result.applicationId());
+        LeaveApplicationResult response = new LeaveApplicationResult(result.success(), result.message(), result.applicationId());
+        audit("applyLeave", employeeId, input(
+                "employeeId", employeeId,
+                "leaveType", leaveType,
+                "startDate", startDate,
+                "endDate", endDate,
+                "reason", reason
+        ), response, response.isSuccess());
+        return response;
     }
 
     @Tool(description = "查询请假申请状态")
     public LeaveApplicationStatus getLeaveApplicationStatus(
             @ToolParam(description = "请假申请ID", required = true) String applicationId) {
-        return employeeBusinessService.findLeaveApplication(applicationId)
+        LeaveApplicationStatus result = employeeBusinessService.findLeaveApplication(applicationId)
                 .map(this::toLeaveApplicationStatus)
                 .orElse(null);
+        if (result != null) {
+            assertCanAccessEmployee(result.getEmployeeId());
+        }
+        audit("getLeaveApplicationStatus", result == null ? null : result.getEmployeeId(),
+                input("applicationId", applicationId), result, result != null);
+        return result;
     }
 
     @Tool(description = "查询员工的所有请假申请")
     public List<LeaveApplicationStatus> getEmployeeLeaveApplications(
             @ToolParam(description = "员工ID", required = true) String employeeId) {
-        return employeeBusinessService.findLeaveApplicationsByEmployee(employeeId).stream()
+        assertCanAccessEmployee(employeeId);
+        List<LeaveApplicationStatus> result = employeeBusinessService.findLeaveApplicationsByEmployee(employeeId).stream()
                 .map(this::toLeaveApplicationStatus)
                 .toList();
+        audit("getEmployeeLeaveApplications", employeeId, input("employeeId", employeeId), result, true);
+        return result;
     }
 
     @Tool(description = "申请报销，返回申请结果和申请ID")
@@ -90,22 +128,65 @@ public class EmployeeServiceTools {
             @ToolParam(description = "报销金额（元）", required = true) double amount,
             @ToolParam(description = "报销说明", required = true) String description,
             @ToolParam(description = "发票号码", required = false) String invoiceNumber) {
+        assertCanAccessEmployee(employeeId);
         EmployeeBusinessService.ReimbursementResult result =
                 employeeBusinessService.applyReimbursement(employeeId, type, amount, description, invoiceNumber);
-        return new ReimbursementResult(result.success(), result.message(), result.applicationId());
+        ReimbursementResult response = new ReimbursementResult(result.success(), result.message(), result.applicationId());
+        audit("applyReimbursement", employeeId, input(
+                "employeeId", employeeId,
+                "type", type,
+                "amount", amount,
+                "description", description,
+                "invoiceNumber", invoiceNumber
+        ), response, response.isSuccess());
+        return response;
     }
 
     @Tool(description = "查询报销申请状态")
     public ReimbursementStatus getReimbursementStatus(
             @ToolParam(description = "报销申请ID", required = true) String applicationId) {
-        return employeeBusinessService.findReimbursementApplication(applicationId)
+        ReimbursementStatus result = employeeBusinessService.findReimbursementApplication(applicationId)
                 .map(this::toReimbursementStatus)
                 .orElse(null);
+        if (result != null) {
+            assertCanAccessEmployee(result.getEmployeeId());
+        }
+        audit("getReimbursementStatus", result == null ? null : result.getEmployeeId(),
+                input("applicationId", applicationId), result, result != null);
+        return result;
     }
 
     @Tool(description = "获取所有部门列表")
     public List<String> getAllDepartments() {
-        return employeeBusinessService.findAllDepartments();
+        List<String> result = employeeBusinessService.findAllDepartments();
+        audit("getAllDepartments", null, Map.of(), result, true);
+        return result;
+    }
+
+    private void audit(String toolName, String employeeId, Object input, Object result, boolean success) {
+        toolAuditService.record(toolName, "employee-service", employeeId, input, result, success);
+    }
+
+    private void assertCanAccessEmployee(String employeeId) {
+        CurrentUser user = CurrentUserContext.require();
+        if (!user.canAccessEmployee(employeeId)) {
+            throw new ForbiddenException("当前账号无权访问员工 " + employeeId + " 的数据");
+        }
+    }
+
+    private void assertHrOrAdmin() {
+        CurrentUser user = CurrentUserContext.require();
+        if (!user.isHr() && !user.isAdmin()) {
+            throw new ForbiddenException("当前账号无权查询员工列表");
+        }
+    }
+
+    private Map<String, Object> input(Object... keyValues) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        for (int index = 0; index + 1 < keyValues.length; index += 2) {
+            input.put(String.valueOf(keyValues[index]), keyValues[index + 1]);
+        }
+        return input;
     }
 
     private EmployeeInfo toEmployeeInfo(EmployeeEntity employee) {

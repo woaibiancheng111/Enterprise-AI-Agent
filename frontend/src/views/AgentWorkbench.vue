@@ -1,9 +1,39 @@
 <template>
-  <div class="page">
+  <div :class="['page', { 'auth-page': !currentUser }]">
     <div class="bg-orb orb-one"></div>
     <div class="bg-orb orb-two"></div>
 
-    <aside class="panel left-panel">
+    <section v-if="!currentUser" class="panel login-panel">
+      <div class="brand login-brand">
+        <span class="brand-dot"></span>
+        <div>
+          <h1>Enterprise AI Agent</h1>
+          <p class="subtitle">请登录后使用企业 AI 助手</p>
+        </div>
+      </div>
+      <form class="login-form" @submit.prevent="onLogin">
+        <label class="field">
+          <span>账号</span>
+          <input v-model="loginForm.username" autocomplete="username" placeholder="zhangsan" />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="123456" />
+        </label>
+        <button type="submit" class="primary-btn" :disabled="loginLoading">
+          {{ loginLoading ? "登录中..." : "登录" }}
+        </button>
+        <p v-if="loginError" class="login-error">{{ loginError }}</p>
+      </form>
+      <div class="demo-users">
+        <span>演示账号</span>
+        <button type="button" @click="fillDemoUser('zhangsan')">张三</button>
+        <button type="button" @click="fillDemoUser('hr_admin')">HR</button>
+        <button type="button" @click="fillDemoUser('admin')">管理员</button>
+      </div>
+    </section>
+
+    <aside v-else class="panel left-panel">
       <div class="brand">
         <span class="brand-dot"></span>
         <div>
@@ -12,33 +42,38 @@
         </div>
       </div>
 
-      <section class="card">
-        <h2>会话参数</h2>
-        <label class="field">
-          <span>会话 ID</span>
-          <input v-model.trim="chatId" type="text" placeholder="default-user" />
-        </label>
-        <label class="field">
-          <span>引用数量</span>
-          <input v-model.number="topK" type="number" min="1" max="10" placeholder="5" />
-        </label>
-        <div class="field">
-          <span>当前能力</span>
-          <div class="mode-grid">
-            <button
-              v-for="item in readyCapabilities"
-              :key="item.key"
-              type="button"
-              :class="['mode-btn', { active: selectedMode === item.key }]"
-              @click="onSelectMode(item.key)"
-            >
-              {{ item.name }}
-            </button>
+      <section class="card user-card">
+        <h2>当前账号</h2>
+        <div class="user-profile">
+          <span>{{ currentUser.displayName.slice(0, 1) }}</span>
+          <div>
+            <strong>{{ currentUser.displayName }}</strong>
+            <p>{{ currentUser.role }} · {{ currentUser.employeeId || "全局权限" }}</p>
           </div>
         </div>
+        <button type="button" class="secondary-btn logout-btn" @click="onLogout">退出登录</button>
+      </section>
+
+      <section class="card">
+        <h2>服务类型</h2>
+        <div class="mode-grid">
+          <button
+            v-for="item in readyCapabilities"
+            :key="item.key"
+            type="button"
+            :class="['mode-btn', { active: selectedMode === item.key }]"
+            @click="onSelectMode(item.key)"
+          >
+            {{ item.name }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card service-status-card">
+        <h2>服务状态</h2>
         <div class="health-row">
           <button type="button" class="secondary-btn" @click="onHealthCheck">
-            健康检查
+            刷新状态
           </button>
           <p :class="['status-text', healthStatusClass]">{{ healthText }}</p>
         </div>
@@ -50,7 +85,7 @@
       </section>
     </aside>
 
-    <main class="panel chat-panel">
+    <main v-if="currentUser" class="panel chat-panel">
       <header class="chat-header">
         <div>
           <h2>{{ currentCapability?.name }}</h2>
@@ -133,52 +168,6 @@
           <header>{{ roleLabelMap[message.role] }}</header>
           <pre v-if="message.isJson">{{ message.text }}</pre>
           <template v-else-if="message.role === 'assistant'">
-            <div v-if="message.teamResponse" class="team-result">
-              <details class="fold-card">
-                <summary>
-                  <span>处理过程</span>
-                  <strong>{{ message.teamResponse.route.routeType }}</strong>
-                  <em>{{ message.teamResponse.route.priority }}</em>
-                </summary>
-                <div class="team-result-header">
-                  <div>
-                    <span class="team-label">DIGITAL TEAM</span>
-                    <strong>{{ message.teamResponse.route.routeType }}</strong>
-                  </div>
-                  <span :class="['priority-pill', message.teamResponse.route.priority.toLowerCase()]">
-                    {{ message.teamResponse.route.priority }}
-                  </span>
-                </div>
-                <div class="agent-flow">
-                  <article v-for="step in message.teamResponse.steps" :key="step.code" class="flow-step">
-                    <span>{{ step.name }}</span>
-                    <strong>{{ step.summary }}</strong>
-                    <p>{{ step.output }}</p>
-                  </article>
-                </div>
-                <ul class="tracker-actions">
-                  <li v-for="action in message.teamResponse.tracker.actions" :key="action">{{ action }}</li>
-                </ul>
-              </details>
-
-              <details v-if="message.teamResponse.citations.length" class="fold-card reference-card">
-                <summary>
-                  <span>参考来源</span>
-                  <strong>{{ message.teamResponse.citations.length }} 条资料</strong>
-                </summary>
-                <div class="citation-grid">
-                  <article
-                    v-for="item in message.teamResponse.citations"
-                    :key="`${item.sourceFile}-${item.chunkIndex}`"
-                  >
-                    <span>{{ item.sourceType }}</span>
-                    <strong>{{ item.sourceFile }}</strong>
-                    <p>{{ item.highlight }}</p>
-                  </article>
-                </div>
-              </details>
-            </div>
-
             <div
               class="markdown-body"
               v-html="renderAssistantMarkdown(getAnswerText(message.text))"
@@ -234,18 +223,22 @@
 <script setup lang="ts">
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { computed, ref, nextTick, onUnmounted } from "vue";
+import { computed, ref, nextTick, onMounted, onUnmounted } from "vue";
 import { CAPABILITIES } from "../config/capabilities";
 import {
   checkHealth,
+  clearAuthToken,
+  getAuthToken,
+  getCurrentUser,
   requestEnterprise,
   requestDigitalTeam,
   getMcpStatus,
+  login,
   listMcpTools,
   createStreamController
 } from "../services/enterpriseApi";
 import KnowledgeBaseUpload from "../components/KnowledgeBaseUpload.vue";
-import type { ChatMessage, DigitalTeamResponse, McpStatus, McpToolCard, ReadyCapability } from "../types/enterprise";
+import type { ChatMessage, DigitalTeamResponse, McpStatus, McpToolCard, ReadyCapability, UserProfile } from "../types/enterprise";
 
 const capabilities = CAPABILITIES;
 const readyCapabilities = capabilities.filter((item) => item.status === "ready");
@@ -258,10 +251,17 @@ const selectedMode = ref<ReadyCapability>("team-chat");
 const chatId = ref("default-user");
 const inputMessage = ref("");
 const isStreaming = ref(false);
-const topK = ref(5);
+const topK = 5;
 const healthText = ref("后端状态未检查");
 const mcpStatus = ref<McpStatus | null>(null);
 const mcpTools = ref<McpToolCard[]>([]);
+const currentUser = ref<UserProfile | null>(null);
+const loginLoading = ref(false);
+const loginError = ref("");
+const loginForm = ref({
+  username: "zhangsan",
+  password: "123456"
+});
 const messages = ref<ChatMessage[]>([
   {
     id: crypto.randomUUID(),
@@ -375,6 +375,41 @@ function onUsePrompt(prompt: string): void {
   textareaRef.value?.focus();
 }
 
+function fillDemoUser(username: string): void {
+  loginForm.value.username = username;
+  loginForm.value.password = "123456";
+}
+
+async function onLogin(): Promise<void> {
+  loginLoading.value = true;
+  loginError.value = "";
+  try {
+    const result = await login(loginForm.value.username, loginForm.value.password);
+    currentUser.value = result.user;
+    chatId.value = result.user.username;
+    messages.value = [
+      {
+        id: crypto.randomUUID(),
+        role: "system",
+        text: `欢迎回来，${result.user.displayName}。企业 AI 助手已连接你的账号权限。`
+      }
+    ];
+    await onHealthCheck();
+  } catch (error) {
+    loginError.value = extractErrorMessage(error);
+  } finally {
+    loginLoading.value = false;
+  }
+}
+
+function onLogout(): void {
+  clearAuthToken();
+  currentUser.value = null;
+  chatId.value = "default-user";
+  mcpStatus.value = null;
+  mcpTools.value = [];
+}
+
 function onSelectMode(mode: ReadyCapability): void {
   selectedMode.value = mode;
   if (mode === "mcp") {
@@ -403,14 +438,66 @@ function renderAssistantMarkdown(markdown: string): string {
 
 function splitReferenceSection(text: string): { answer: string; reference: string } {
   const referenceMarker = "【参考来源】";
-  const markerIndex = text.indexOf(referenceMarker);
+  const markerIndex = text.lastIndexOf(referenceMarker);
   if (markerIndex === -1) {
     return { answer: text, reference: "" };
   }
+  if (markerIndex === 0) {
+    return splitLeadingReferenceSection(text, referenceMarker);
+  }
+
+  const beforeMarker = text.slice(0, markerIndex);
+  const separatorIndex = beforeMarker.lastIndexOf("---");
+  const answer = separatorIndex >= 0
+    ? beforeMarker.slice(0, separatorIndex).trim()
+    : beforeMarker.trim();
+
+  if (!answer) {
+    return { answer: text, reference: "" };
+  }
+
   return {
-    answer: text.slice(0, markerIndex).trim(),
+    answer,
     reference: text.slice(markerIndex).trim()
   };
+}
+
+function splitLeadingReferenceSection(text: string, referenceMarker: string): { answer: string; reference: string } {
+  const lines = text.split(/\r?\n/);
+  let answerStartIndex = -1;
+  let hasReferenceItem = false;
+
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (!line) {
+      continue;
+    }
+    if (isReferenceLine(line)) {
+      hasReferenceItem = true;
+      continue;
+    }
+    if (hasReferenceItem) {
+      answerStartIndex = index;
+      break;
+    }
+  }
+
+  if (answerStartIndex === -1) {
+    return { answer: "", reference: text.trim() };
+  }
+
+  const reference = lines.slice(0, answerStartIndex).join("\n").trim();
+  const answer = lines.slice(answerStartIndex).join("\n").trim();
+  return {
+    answer,
+    reference: reference || referenceMarker
+  };
+}
+
+function isReferenceLine(line: string): boolean {
+  return /^\[\d+\]\s+/.test(line)
+    || /^\d+\.\s+\[/.test(line)
+    || /^[-*]\s+/.test(line);
 }
 
 function getAnswerText(text: string): string {
@@ -458,7 +545,7 @@ async function handleNonStreamRequest(currentInput: string): Promise<void> {
       const teamResponse = await requestDigitalTeam(
         currentInput,
         chatId.value || "default-user",
-        topK.value
+        topK
       );
       appendMessage({
         role: "assistant",
@@ -543,7 +630,7 @@ function handleStreamRequest(currentInput: string): void {
         isStreaming.value = false;
       }
     },
-    topK.value
+      topK
   );
 }
 
@@ -555,11 +642,31 @@ function scrollToBottom(): void {
 }
 
 function extractErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
   if (error instanceof Error) {
     return error.message;
   }
   return "未知错误";
 }
+
+onMounted(async () => {
+  if (!getAuthToken()) {
+    return;
+  }
+  try {
+    currentUser.value = await getCurrentUser();
+    chatId.value = currentUser.value.username;
+    await onHealthCheck();
+  } catch {
+    clearAuthToken();
+    currentUser.value = null;
+  }
+});
 
 onUnmounted(() => {
   if (currentStreamController) {
@@ -569,6 +676,105 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.auth-page {
+  grid-template-columns: minmax(320px, 460px);
+  align-items: center;
+  justify-content: center;
+}
+
+.login-panel {
+  z-index: 1;
+  padding: 28px;
+}
+
+.login-brand {
+  margin-bottom: 22px;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-form .primary-btn {
+  width: 100%;
+}
+
+.login-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.demo-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.demo-users span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.demo-users button {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.52);
+  font-size: 12px;
+}
+
+.demo-users button:hover {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #f8fafc;
+}
+
+.user-card {
+  display: grid;
+  gap: 12px;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-profile span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #10b981);
+  font-weight: 700;
+}
+
+.user-profile strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.user-profile p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.logout-btn {
+  width: 100%;
+}
+
 .team-cockpit {
   display: grid;
   gap: 12px;
@@ -662,8 +868,7 @@ onUnmounted(() => {
 }
 
 .route-strip span,
-.mcp-strip span,
-.team-label {
+.mcp-strip span {
   display: block;
   color: #64748b;
   font-size: 10px;
@@ -685,12 +890,6 @@ onUnmounted(() => {
 .risk-text.low { color: #34d399; }
 .risk-text.medium { color: #fbbf24; }
 .risk-text.high { color: #f87171; }
-
-.team-result {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 14px;
-}
 
 .fold-card {
   border: 1px solid rgba(148, 163, 184, 0.16);
@@ -756,107 +955,6 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.team-result-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 12px 10px;
-  border-radius: 12px;
-  padding: 12px;
-  background: rgba(15, 23, 42, 0.52);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-.team-result-header strong {
-  display: block;
-  margin-top: 4px;
-  color: #f8fafc;
-  font-size: 13px;
-}
-
-.priority-pill {
-  flex: 0 0 auto;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #bfdbfe;
-  background: rgba(37, 99, 235, 0.16);
-  border: 1px solid rgba(96, 165, 250, 0.25);
-}
-
-.priority-pill.p0 {
-  color: #fecaca;
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(248, 113, 113, 0.28);
-}
-
-.priority-pill.p1 {
-  color: #fed7aa;
-  background: rgba(249, 115, 22, 0.14);
-  border-color: rgba(251, 146, 60, 0.25);
-}
-
-.agent-flow {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-  gap: 8px;
-  margin: 0 12px 12px;
-  overflow-x: auto;
-}
-
-.flow-step,
-.citation-grid article {
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(15, 23, 42, 0.46);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-.flow-step span,
-.citation-grid span {
-  color: #60a5fa;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.flow-step strong,
-.citation-grid strong {
-  display: block;
-  margin-top: 5px;
-  color: #f1f5f9;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.flow-step p,
-.citation-grid p {
-  margin: 6px 0 0;
-  color: #94a3b8;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.citation-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 0 12px 12px;
-}
-
-.tracker-actions {
-  margin: 0 12px 12px;
-  padding: 10px 10px 10px 28px;
-  border-radius: 12px;
-  color: #cbd5e1;
-  background: rgba(217, 119, 6, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.16);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 .text-reference-card {
   margin-top: 12px;
 }
@@ -902,12 +1000,7 @@ onUnmounted(() => {
 @media (max-width: 900px) {
   .agent-roster,
   .route-strip,
-  .mcp-strip,
-  .citation-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .agent-flow {
+  .mcp-strip {
     grid-template-columns: 1fr;
   }
 }

@@ -244,10 +244,9 @@ public class EnterpriseApp {
                 .stream()
                 .content();
 
-        // 4. 先发送引用，再发送 AI 回复
+        // 4. 先发送 AI 回复，最后附加引用，便于前端稳定拆分正文和来源
         if (!citationsText.isEmpty()) {
-            return Flux.just(citationsText + "\n\n")
-                    .concatWith(aiStream);
+            return aiStream.concatWith(Flux.just("\n\n---\n" + citationsText));
         }
         return aiStream;
     }

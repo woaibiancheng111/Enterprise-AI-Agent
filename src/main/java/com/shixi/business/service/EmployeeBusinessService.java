@@ -1,13 +1,15 @@
 package com.shixi.business.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.shixi.business.entity.EmployeeEntity;
 import com.shixi.business.entity.LeaveApplicationEntity;
 import com.shixi.business.entity.LeaveBalanceEntity;
 import com.shixi.business.entity.ReimbursementApplicationEntity;
-import com.shixi.business.repository.EmployeeRepository;
-import com.shixi.business.repository.LeaveApplicationRepository;
-import com.shixi.business.repository.LeaveBalanceRepository;
-import com.shixi.business.repository.ReimbursementApplicationRepository;
+import com.shixi.business.mapper.EmployeeMapper;
+import com.shixi.business.mapper.LeaveApplicationMapper;
+import com.shixi.business.mapper.LeaveBalanceMapper;
+import com.shixi.business.mapper.ReimbursementApplicationMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,30 +23,32 @@ import java.util.Optional;
 @Service
 public class EmployeeBusinessService {
 
-    private final EmployeeRepository employeeRepository;
-    private final LeaveBalanceRepository leaveBalanceRepository;
-    private final LeaveApplicationRepository leaveApplicationRepository;
-    private final ReimbursementApplicationRepository reimbursementApplicationRepository;
+    private final EmployeeMapper employeeMapper;
+    private final LeaveBalanceMapper leaveBalanceMapper;
+    private final LeaveApplicationMapper leaveApplicationMapper;
+    private final ReimbursementApplicationMapper reimbursementApplicationMapper;
 
     public EmployeeBusinessService(
-            EmployeeRepository employeeRepository,
-            LeaveBalanceRepository leaveBalanceRepository,
-            LeaveApplicationRepository leaveApplicationRepository,
-            ReimbursementApplicationRepository reimbursementApplicationRepository) {
-        this.employeeRepository = employeeRepository;
-        this.leaveBalanceRepository = leaveBalanceRepository;
-        this.leaveApplicationRepository = leaveApplicationRepository;
-        this.reimbursementApplicationRepository = reimbursementApplicationRepository;
+            EmployeeMapper employeeMapper,
+            LeaveBalanceMapper leaveBalanceMapper,
+            LeaveApplicationMapper leaveApplicationMapper,
+            ReimbursementApplicationMapper reimbursementApplicationMapper) {
+        this.employeeMapper = employeeMapper;
+        this.leaveBalanceMapper = leaveBalanceMapper;
+        this.leaveApplicationMapper = leaveApplicationMapper;
+        this.reimbursementApplicationMapper = reimbursementApplicationMapper;
     }
 
     @Transactional(readOnly = true)
     public Optional<EmployeeEntity> findEmployee(String employeeId) {
-        return employeeRepository.findById(normalizeEmployeeId(employeeId));
+        return Optional.ofNullable(employeeMapper.selectById(normalizeEmployeeId(employeeId)));
     }
 
     @Transactional(readOnly = true)
     public List<String> findEmployeeIdsByName(String name) {
-        return employeeRepository.findByName(name).stream()
+        return employeeMapper.selectList(new LambdaQueryWrapper<EmployeeEntity>()
+                        .eq(EmployeeEntity::getName, name))
+                .stream()
                 .map(EmployeeEntity::getEmployeeId)
                 .sorted()
                 .toList();
@@ -52,7 +56,9 @@ public class EmployeeBusinessService {
 
     @Transactional(readOnly = true)
     public List<String> findEmployeeIdsByDepartment(String department) {
-        return employeeRepository.findByDepartment(department).stream()
+        return employeeMapper.selectList(new LambdaQueryWrapper<EmployeeEntity>()
+                        .eq(EmployeeEntity::getDepartment, department))
+                .stream()
                 .map(EmployeeEntity::getEmployeeId)
                 .sorted()
                 .toList();
@@ -60,14 +66,14 @@ public class EmployeeBusinessService {
 
     @Transactional(readOnly = true)
     public Optional<LeaveBalanceEntity> findLeaveBalance(String employeeId) {
-        return leaveBalanceRepository.findById(normalizeEmployeeId(employeeId));
+        return Optional.ofNullable(leaveBalanceMapper.selectById(normalizeEmployeeId(employeeId)));
     }
 
     @Transactional
     public LeaveApplicationResult applyLeave(String employeeId, String leaveType,
                                              LocalDate startDate, LocalDate endDate, String reason) {
         String normalizedEmployeeId = normalizeEmployeeId(employeeId);
-        if (!employeeRepository.existsById(normalizedEmployeeId)) {
+        if (employeeMapper.selectById(normalizedEmployeeId) == null) {
             return new LeaveApplicationResult(false, "员工不存在", null);
         }
         if (startDate.isAfter(endDate)) {
@@ -77,9 +83,9 @@ public class EmployeeBusinessService {
         int days = (int) (endDate.toEpochDay() - startDate.toEpochDay()) + 1;
         String normalizedLeaveType = normalizeCode(leaveType);
         if (!"PERSONAL".equals(normalizedLeaveType)) {
-            Optional<LeaveBalanceEntity> balance = leaveBalanceRepository.findById(normalizedEmployeeId);
-            if (balance.isPresent()) {
-                int availableDays = availableDays(balance.get(), normalizedLeaveType);
+            LeaveBalanceEntity balance = leaveBalanceMapper.selectById(normalizedEmployeeId);
+            if (balance != null) {
+                int availableDays = availableDays(balance, normalizedLeaveType);
                 if (days > availableDays) {
                     return new LeaveApplicationResult(false,
                             "假期余额不足，可用" + availableDays + "天，申请" + days + "天", null);
@@ -87,8 +93,7 @@ public class EmployeeBusinessService {
             }
         }
 
-        String applicationId = nextApplicationId("L", leaveApplicationRepository.findTopByOrderByApplicationIdDesc()
-                .map(LeaveApplicationEntity::getApplicationId));
+        String applicationId = nextApplicationId("L");
         LeaveApplicationEntity application = new LeaveApplicationEntity(
                 applicationId,
                 normalizedEmployeeId,
@@ -100,33 +105,35 @@ public class EmployeeBusinessService {
                 "PENDING",
                 LocalDate.now()
         );
-        leaveApplicationRepository.save(application);
+        leaveApplicationMapper.insert(application);
         return new LeaveApplicationResult(true, "申请已提交，请等待审批", applicationId);
     }
 
     @Transactional(readOnly = true)
     public Optional<LeaveApplicationEntity> findLeaveApplication(String applicationId) {
-        return leaveApplicationRepository.findById(normalizeCode(applicationId));
+        return Optional.ofNullable(leaveApplicationMapper.selectById(normalizeCode(applicationId)));
     }
 
     @Transactional(readOnly = true)
     public List<LeaveApplicationEntity> findLeaveApplicationsByEmployee(String employeeId) {
-        return leaveApplicationRepository.findByEmployeeIdOrderByApplyDateDescApplicationIdDesc(normalizeEmployeeId(employeeId));
+        return leaveApplicationMapper.selectList(new LambdaQueryWrapper<LeaveApplicationEntity>()
+                .eq(LeaveApplicationEntity::getEmployeeId, normalizeEmployeeId(employeeId))
+                .orderByDesc(LeaveApplicationEntity::getApplyDate)
+                .orderByDesc(LeaveApplicationEntity::getApplicationId));
     }
 
     @Transactional
     public ReimbursementResult applyReimbursement(String employeeId, String type, double amount,
                                                   String description, String invoiceNumber) {
         String normalizedEmployeeId = normalizeEmployeeId(employeeId);
-        if (!employeeRepository.existsById(normalizedEmployeeId)) {
+        if (employeeMapper.selectById(normalizedEmployeeId) == null) {
             return new ReimbursementResult(false, "员工不存在", null);
         }
         if (amount <= 0) {
             return new ReimbursementResult(false, "报销金额必须大于0", null);
         }
 
-        String applicationId = nextApplicationId("R", reimbursementApplicationRepository.findTopByOrderByApplicationIdDesc()
-                .map(ReimbursementApplicationEntity::getApplicationId));
+        String applicationId = nextApplicationId("R");
         ReimbursementApplicationEntity application = new ReimbursementApplicationEntity(
                 applicationId,
                 normalizedEmployeeId,
@@ -137,18 +144,18 @@ public class EmployeeBusinessService {
                 "PENDING",
                 LocalDate.now()
         );
-        reimbursementApplicationRepository.save(application);
+        reimbursementApplicationMapper.insert(application);
         return new ReimbursementResult(true, "报销申请已提交，请等待审批", applicationId);
     }
 
     @Transactional(readOnly = true)
     public Optional<ReimbursementApplicationEntity> findReimbursementApplication(String applicationId) {
-        return reimbursementApplicationRepository.findById(normalizeCode(applicationId));
+        return Optional.ofNullable(reimbursementApplicationMapper.selectById(normalizeCode(applicationId)));
     }
 
     @Transactional(readOnly = true)
     public List<String> findAllDepartments() {
-        return employeeRepository.findAll().stream()
+        return employeeMapper.selectList(null).stream()
                 .map(EmployeeEntity::getDepartment)
                 .distinct()
                 .sorted(Comparator.naturalOrder())
@@ -165,13 +172,35 @@ public class EmployeeBusinessService {
         };
     }
 
-    private String nextApplicationId(String prefix, Optional<String> latestApplicationId) {
-        int next = latestApplicationId
+    private String nextApplicationId(String prefix) {
+        List<String> applicationIds = "L".equals(prefix)
+                ? selectLeaveApplicationIds(prefix)
+                : selectReimbursementApplicationIds(prefix);
+        int next = applicationIds.stream()
                 .map(id -> id.replaceAll("\\D", ""))
                 .filter(value -> !value.isBlank())
-                .map(Integer::parseInt)
+                .mapToInt(Integer::parseInt)
+                .max()
                 .orElse(0) + 1;
         return prefix + String.format("%04d", next);
+    }
+
+    private List<String> selectLeaveApplicationIds(String prefix) {
+        return leaveApplicationMapper.selectList(new QueryWrapper<LeaveApplicationEntity>()
+                        .select("application_id")
+                        .likeRight("application_id", prefix))
+                .stream()
+                .map(LeaveApplicationEntity::getApplicationId)
+                .toList();
+    }
+
+    private List<String> selectReimbursementApplicationIds(String prefix) {
+        return reimbursementApplicationMapper.selectList(new QueryWrapper<ReimbursementApplicationEntity>()
+                        .select("application_id")
+                        .likeRight("application_id", prefix))
+                .stream()
+                .map(ReimbursementApplicationEntity::getApplicationId)
+                .toList();
     }
 
     private String normalizeEmployeeId(String employeeId) {

@@ -102,3 +102,17 @@ export interface ChatMessage {
   streaming?: boolean;
   teamResponse?: DigitalTeamResponse;
 }
+
+export interface UserProfile {
+  userId: string;
+  username: string;
+  employeeId: string | null;
+  displayName: string;
+  role: "EMPLOYEE" | "HR" | "ADMIN" | string;
+}
+
+export interface LoginResponse {
+  token: string;
+  expiresAt: number;
+  user: UserProfile;
+}

@@ -6,20 +6,28 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("leave_balances")
-public class LeaveBalanceEntity {
+@TableName("employee_users")
+public class EmployeeUserEntity {
 
     @TableId
+    private String userId;
+
+    private String username;
+
+    private String passwordHash;
+
     private String employeeId;
 
-    private int annualLeave;
+    private String displayName;
 
-    private int sickLeave;
+    private String role;
 
-    private int marriageLeave;
+    private boolean enabled;
 
-    private int maternityLeave;
+    private LocalDateTime createdAt;
 }

@@ -3,6 +3,7 @@ package com.shixi.controller;
 import com.shixi.rag.model.SearchResult;
 import com.shixi.rag.service.EnhancedRagService;
 import com.shixi.rag.service.QueryRewriter;
+import com.shixi.security.ConversationIdResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,10 +35,15 @@ public class EnhancedRagController {
 
     private final EnhancedRagService enhancedRagService;
     private final QueryRewriter queryRewriter;
+    private final ConversationIdResolver conversationIdResolver;
 
-    public EnhancedRagController(EnhancedRagService enhancedRagService, QueryRewriter queryRewriter) {
+    public EnhancedRagController(
+            EnhancedRagService enhancedRagService,
+            QueryRewriter queryRewriter,
+            ConversationIdResolver conversationIdResolver) {
         this.enhancedRagService = enhancedRagService;
         this.queryRewriter = queryRewriter;
+        this.conversationIdResolver = conversationIdResolver;
     }
 
     /**
@@ -53,14 +59,15 @@ public class EnhancedRagController {
             @Parameter(description = "返回结果数量")
             @RequestParam(defaultValue = "5") int topK) {
 
-        log.info("增强版 RAG 对话: message={}, chatId={}, topK={}", message, chatId, topK);
+        String scopedChatId = conversationIdResolver.resolve(chatId);
+        log.info("增强版 RAG 对话: message={}, chatId={}, topK={}", message, scopedChatId, topK);
 
-        String answer = enhancedRagService.chat(message, chatId, topK);
+        String answer = enhancedRagService.chat(message, scopedChatId, topK);
 
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("answer", answer);
-        result.put("chatId", chatId);
+        result.put("chatId", scopedChatId);
 
         return ResponseEntity.ok(result);
     }
@@ -78,9 +85,10 @@ public class EnhancedRagController {
             @Parameter(description = "返回结果数量")
             @RequestParam(defaultValue = "5") int topK) {
 
-        log.info("增强版 RAG 流式对话: message={}, chatId={}, topK={}", message, chatId, topK);
+        String scopedChatId = conversationIdResolver.resolve(chatId);
+        log.info("增强版 RAG 流式对话: message={}, chatId={}, topK={}", message, scopedChatId, topK);
 
-        return enhancedRagService.streamChat(message, chatId, topK)
+        return enhancedRagService.streamChat(message, scopedChatId, topK)
                 .map(content -> ServerSentEvent.<String>builder()
                         .id("1")
                         .event("chunk")

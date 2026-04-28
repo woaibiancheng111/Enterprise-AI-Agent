@@ -57,12 +57,12 @@ public class ToolOrchestrationService {
         }
 
         Optional<String> employeeId = extractEmployeeId(message);
-        if (employeeId.isPresent() && containsAny(normalized, "基本信息", "员工信息", "查询员工", "是谁", "邮箱", "电话")) {
-            return Optional.of(formatEmployeeInfo(employeeId.get()));
-        }
-
         if (employeeId.isPresent() && containsAny(normalized, "假期余额", "年假余额", "剩几天", "还剩")) {
             return Optional.of(formatLeaveBalance(employeeId.get()));
+        }
+
+        if (employeeId.isPresent() && containsAny(normalized, "基本信息", "员工信息", "查询员工", "是谁", "邮箱", "电话")) {
+            return Optional.of(formatEmployeeInfo(employeeId.get()));
         }
 
         if (employeeId.isPresent() && LEAVE_APPLICATION_PATTERN.matcher(message).find()

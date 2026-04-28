@@ -1,19 +1,53 @@
 import axios from "axios";
 import type {
   DigitalTeamResponse,
+  LoginResponse,
   McpChatResponse,
   McpStatus,
   McpToolCard,
   ReadyCapability,
-  TicketResponse
+  TicketResponse,
+  UserProfile
 } from "../types/enterprise";
 
 const API_BASE_PATH = import.meta.env.VITE_API_BASE_PATH || "/api";
+const TOKEN_STORAGE_KEY = "enterprise_ai_agent_token";
 
 const http = axios.create({
   baseURL: API_BASE_PATH,
   timeout: 60000
 });
+
+http.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export function getAuthToken(): string {
+  return localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+}
+
+export function setAuthToken(token: string): void {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  const { data } = await http.post<LoginResponse>("/auth/login", { username, password });
+  setAuthToken(data.token);
+  return data;
+}
+
+export async function getCurrentUser(): Promise<UserProfile> {
+  const { data } = await http.get<UserProfile>("/auth/me");
+  return data;
+}
 
 const endpointMap: Record<ReadyCapability, string> = {
   "team-chat": "/enterprise/team-chat",
@@ -113,6 +147,10 @@ export function createStreamController() {
     }
 
     let url = `${API_BASE_PATH}${endpoint}?message=${encodeURIComponent(message)}&chatId=${encodeURIComponent(chatId)}`;
+    const token = getAuthToken();
+    if (token) {
+      url += `&access_token=${encodeURIComponent(token)}`;
+    }
     // rag-chat 模式添加 topK 参数
     if (capability === "rag-chat") {
       url += `&topK=${topK}`;

@@ -13,25 +13,26 @@ spring:
         sse-message-endpoint: /mcp/message
         tool-change-notification: true
   datasource:
-    url: jdbc:h2:file:./data/enterprise-agent;MODE=MySQL;DATABASE_TO_UPPER=false
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-  jpa:
-    hibernate:
-      ddl-auto: update
-    open-in-view: false
-    properties:
-      hibernate:
-        format_sql: false
+    url: jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 123456
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
 server:
   port: 8123
   servlet:
       context-path: /api
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
 
 # springdoc-openapi????
 springdoc:
@@ -80,3 +81,9 @@ rag:
 # ==================== 知识库配置 ====================
 knowledge:
   base-path: src/main/resources/documents
+
+enterprise:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:enterprise-ai-agent-local-secret}
+      ttl-seconds: 86400

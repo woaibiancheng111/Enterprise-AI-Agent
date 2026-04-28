@@ -12,6 +12,7 @@
 - **智能工具调用**：支持员工信息、假期余额、请假申请、报销、工作日计算等企业业务工具，并提供确定性编排兜底，提升调用稳定性。
 - **MCP 集成**：内置企业 MCP 工具服务，可查询服务状态、工具清单，并通过统一接口执行工具调用。
 - **RAG 知识库问答**：混合检索（向量 + BM25 + RRF 重排序），支持查询改写、意图识别、引用来源和流式响应。
+- **JWT 登录与权限控制**：员工、HR、管理员使用独立账号登录，工具调用按账号权限访问真实员工数据。
 - **用户级前端体验**：Vue 3 工作台提供多能力入口、流式回答、知识库上传、MCP 状态展示、处理过程折叠卡片和参考来源折叠卡片。
 - **会话记忆**：基于 Kryo 文件持久化对话历史，支持跨重启的上下文连续性。
 
@@ -29,6 +30,7 @@
 | MCP 集成 | 暴露 MCP 状态、工具列表、对话和工具调用接口 |
 | 知识库管理 | 支持文档列表、上传、删除和动态重载 |
 | 流式输出 | 支持 SSE 流式响应，提升前端交互体验 |
+| 登录权限 | 支持 JWT 登录、当前用户识别、员工数据权限和审计权限控制 |
 
 ---
 
@@ -41,7 +43,8 @@
 | AI 集成 | Spring AI 1.0.0-M6 + Spring AI Alibaba 1.0.0-M6.1 |
 | 大模型 | 阿里云 DashScope（Qwen 系列） |
 | MCP | Spring AI MCP Server + 本地工具桥接 |
-| 业务数据 | Spring Data JPA + H2 文件数据库（可切换 MySQL/PostgreSQL） |
+| 业务数据 | MySQL + MyBatis Plus |
+| 鉴权 | 自定义 JWT + Spring MVC Interceptor |
 | RAG | SimpleVectorStore、BM25、RRF、Rerank、Query Rewrite |
 | 前端 | Vue 3、Vite、TypeScript、Axios |
 | Markdown 渲染 | marked + DOMPurify |
@@ -67,14 +70,14 @@
 │   │   └── EnterpriseApp.java             # 核心对话、RAG、工具调用入口
 │   ├── business/
 │   │   ├── entity/                        # 员工、假期、请假、报销实体
-│   │   ├── repository/                    # Spring Data JPA Repository
+│   │   ├── mapper/                        # MyBatis Plus Mapper
 │   │   ├── service/                       # 真实业务数据服务
-│   │   └── config/                        # 本地首次启动数据初始化
 │   ├── agent/
 │   │   ├── DigitalTeamService.java        # 数字团队编排
 │   │   ├── McpIntegrationService.java     # MCP 集成服务
 │   │   └── ToolOrchestrationService.java  # 确定性工具编排兜底
 │   ├── controller/
+│   │   ├── AuthController.java            # JWT 登录和当前用户接口
 │   │   ├── EnterpriseController.java      # 企业助手接口
 │   │   ├── McpController.java             # MCP 状态、工具和调用接口
 │   │   ├── KnowledgeBaseController.java   # 知识库管理接口
@@ -87,6 +90,7 @@
 │   ├── rag/                               # 检索、改写、重排与 RAG 编排
 │   ├── advisor/                           # 日志、敏感词、查询增强 Advisor
 │   ├── memory/                            # 文件会话记忆
+│   ├── security/                          # JWT、当前用户上下文、权限异常和拦截器
 │   └── service/                           # 文档上传处理
 └── src/main/resources/
     ├── application.yml                    # 服务、MCP、RAG 配置
@@ -127,26 +131,62 @@ server:
     context-path: /api
 ```
 
-默认业务数据库使用文件型 H2，数据会持久化在 `data/enterprise-agent.*`：
+项目只保留 MySQL 作为业务数据库。需要先创建一个数据库（MySQL 里常说的 schema/database），表结构不用手动建：
+
+```sql
+CREATE DATABASE enterprise_ai_agent
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+```
+
+默认连接配置位于 `src/main/resources/application.yml`：
 
 ```yaml
 spring:
   datasource:
-    url: jdbc:h2:file:./data/enterprise-agent;MODE=MySQL;DATABASE_TO_UPPER=false
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: update
+    url: jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 123456
+
+enterprise:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:enterprise-ai-agent-local-secret}
+      ttl-seconds: 86400
 ```
 
-本地 H2 控制台地址：
+启动应用时，Spring Boot 会自动执行 `schema.sql` 和 `data.sql`：
+
+- `schema.sql`：创建员工、登录账号、假期、请假、报销和工具审计表。
+- `data.sql`：使用 `INSERT IGNORE` 初始化演示员工、登录账号和假期余额，不覆盖已有数据。
+
+因此推荐流程是：
 
 ```text
-http://localhost:8123/api/h2-console
+1. 手动创建 enterprise_ai_agent 数据库
+2. 启动后端应用
+3. 应用自动建表并写入初始化数据
 ```
 
-生产环境可替换为 MySQL 或 PostgreSQL 连接，只需要改 `spring.datasource.*` 并加入对应数据库驱动。
+如果你想手动执行 SQL，也可以在创建数据库后执行：
+
+```bash
+mysql -u root -p enterprise_ai_agent < src/main/resources/schema.sql
+mysql -u root -p enterprise_ai_agent < src/main/resources/data.sql
+```
+
+启动时仍然激活 `local` profile 读取 DashScope Key：
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+或使用 jar 运行：
+
+```bash
+java -jar target/enterprise-ai-agent-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
+```
 
 ### 启动后端
 
@@ -175,6 +215,15 @@ npm run dev
 http://localhost:5173/
 ```
 
+首次进入前端需要登录，内置演示账号如下，密码均为 `123456`：
+
+| 账号 | 角色 | 数据权限 |
+|------|------|----------|
+| `zhangsan` | EMPLOYEE | 只能访问员工 `E001` 的个人数据 |
+| `lisi` | EMPLOYEE | 只能访问员工 `E002` 的个人数据 |
+| `hr_admin` | HR | 可访问所有员工业务数据和工具审计 |
+| `admin` | ADMIN | 可访问所有员工业务数据和工具审计 |
+
 如需修改前端请求后端地址，可配置：
 
 ```bash
@@ -188,6 +237,7 @@ VITE_API_BASE_PATH=/api
 前端主界面位于 `frontend/src/views/AgentWorkbench.vue`，当前提供：
 
 - 左侧能力入口：综合办理、日常咨询、制度查询、工单整理、业务工具、MCP 集成。
+- 登录页、当前账号展示和退出登录。
 - 消息区 Markdown 渲染与安全过滤。
 - 支持 SSE 流式回答。
 - 数字团队处理过程折叠卡片。
@@ -198,6 +248,19 @@ VITE_API_BASE_PATH=/api
 ---
 
 ## API 接口
+
+除健康检查和登录接口外，业务接口默认需要携带 JWT：
+
+```http
+Authorization: Bearer <token>
+```
+
+### 登录鉴权
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| POST | `/api/auth/login` | 使用账号密码登录，返回 JWT 和用户信息 |
+| GET | `/api/auth/me` | 读取当前登录用户 |
 
 ### 企业助手
 
@@ -252,23 +315,34 @@ http://localhost:8123/api/swagger-ui.html
 ## 示例请求
 
 ```bash
+# 登录并取得 JWT
+curl -X POST "http://localhost:8123/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"zhangsan\",\"password\":\"123456\"}"
+
 # 数字团队综合办理
-curl "http://localhost:8123/api/enterprise/team-chat?message=我想申请明天下午年假，帮我看看余额并处理"
+curl "http://localhost:8123/api/enterprise/team-chat?message=我想申请明天下午年假，帮我看看余额并处理" \
+  -H "Authorization: Bearer <token>"
 
 # 业务工具调用
-curl "http://localhost:8123/api/enterprise/tool-chat?message=查询员工E001的假期余额"
+curl "http://localhost:8123/api/enterprise/tool-chat?message=查询员工E001的假期余额" \
+  -H "Authorization: Bearer <token>"
 
 # MCP 服务状态
-curl "http://localhost:8123/api/mcp/status"
+curl "http://localhost:8123/api/mcp/status" \
+  -H "Authorization: Bearer <token>"
 
 # MCP 工具增强对话
-curl "http://localhost:8123/api/mcp/chat?message=查询员工E001的信息"
+curl "http://localhost:8123/api/mcp/chat?message=查询员工E001的信息" \
+  -H "Authorization: Bearer <token>"
 
 # 知识库对话
-curl "http://localhost:8123/api/enterprise/rag-chat?message=如何申请年假"
+curl "http://localhost:8123/api/enterprise/rag-chat?message=如何申请年假" \
+  -H "Authorization: Bearer <token>"
 
 # 上传知识库文档
 curl -X POST "http://localhost:8123/api/knowledge/upload" \
+  -H "Authorization: Bearer <token>" \
   -F "file=@/path/to/your/document.md"
 ```
 
@@ -329,17 +403,41 @@ LLM 生成回复
 | 假期余额 | `leave_balances` | 年假、病假、婚假、产假余额 |
 | 请假申请 | `leave_applications` | 申请编号、员工、假期类型、起止日期、状态 |
 | 报销申请 | `reimbursement_applications` | 申请编号、员工、类型、金额、发票号、状态 |
+| 登录账号 | `employee_users` | 用户名、密码摘要、关联员工、展示名、角色、启用状态 |
+| 工具审计 | `tool_call_logs` | 工具名称、调用参数、目标员工、结果摘要、成功状态、调用时间 |
 
 工具层调用链路：
 
 ```text
 EmployeeServiceTools
   -> EmployeeBusinessService
-  -> Spring Data JPA Repository
-  -> H2 / MySQL / PostgreSQL
+  -> MyBatis Plus Mapper
+  -> MySQL
 ```
 
-`EnterpriseDataInitializer` 会在数据库为空时写入一批本地演示员工和假期余额。后续通过工具提交的请假、报销申请会真实写入数据库，应用重启后仍可查询。
+MySQL 数据库 `enterprise_ai_agent` 需要先手动创建；表结构由 `schema.sql` 创建，初始化数据由 `data.sql` 写入。后续通过工具提交的请假、报销申请会真实写入 MySQL，应用重启后仍可查询。
+
+工具调用审计已接入员工服务工具，每次查询员工、查询假期、提交请假、提交报销或查询申请状态都会写入 `tool_call_logs`。后端提供审计查询接口：
+
+```text
+GET /api/audit/tool-calls
+GET /api/audit/tool-calls?employeeId=E001
+GET /api/audit/tool-calls?toolName=applyLeave&limit=20
+```
+
+权限规则：
+
+- `EMPLOYEE` 只能访问自己绑定员工编号的数据，例如 `zhangsan` 只能访问 `E001`。
+- `HR` 和 `ADMIN` 可以访问所有员工业务数据。
+- 工具审计日志仅允许 `HR` 和 `ADMIN` 查询。
+- 审计日志会记录真实调用账号的 `user_id`，不再固定为 `system`。
+
+会话记忆隔离：
+
+- 对话历史由 `FileBasedChatMemory` 持久化到 `data/chat-memory/`。
+- 后端会用登录用户生成实际记忆空间：`user-{userId}-{chatId}`。
+- 前端传入的 `chatId` 只作为当前用户内部的会话标识，不能跨用户读取或写入别人的记忆。
+- 记忆文件名会再次做安全字符过滤，避免路径注入。
 
 ---
 
