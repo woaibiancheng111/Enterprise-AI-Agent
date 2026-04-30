@@ -103,6 +103,9 @@ public class ToolOrchestrationService {
                     - 日期：%s 至 %s，共 %d 天
                     - 原因：%s
                     - 申请日期：%s
+                    - 审批人：%s
+                    - 审批意见：%s
+                    - 审批时间：%s
                     """.formatted(
                     status.getApplicationId(),
                     status.getStatus(),
@@ -112,7 +115,10 @@ public class ToolOrchestrationService {
                     status.getEndDate(),
                     status.getDays(),
                     status.getReason(),
-                    status.getApplyDate()
+                    status.getApplyDate(),
+                    emptyToDefault(status.getReviewerId(), "暂无"),
+                    emptyToDefault(status.getReviewComment(), "暂无"),
+                    emptyToDefault(status.getReviewedAt(), "暂无")
             ));
         }
 
@@ -134,6 +140,9 @@ public class ToolOrchestrationService {
                     - 说明：%s
                     - 发票号：%s
                     - 申请日期：%s
+                    - 审批人：%s
+                    - 审批意见：%s
+                    - 审批时间：%s
                     """.formatted(
                     status.getApplicationId(),
                     status.getStatus(),
@@ -142,7 +151,10 @@ public class ToolOrchestrationService {
                     status.getAmount(),
                     status.getDescription(),
                     status.getInvoiceNumber() == null ? "未填写" : status.getInvoiceNumber(),
-                    status.getApplyDate()
+                    status.getApplyDate(),
+                    emptyToDefault(status.getReviewerId(), "暂无"),
+                    emptyToDefault(status.getReviewComment(), "暂无"),
+                    emptyToDefault(status.getReviewedAt(), "暂无")
             ));
         }
 
@@ -377,5 +389,9 @@ public class ToolOrchestrationService {
             return "";
         }
         return text.length() <= maxLength ? text : text.substring(0, maxLength) + "...";
+    }
+
+    private String emptyToDefault(String text, String defaultValue) {
+        return text == null || text.isBlank() ? defaultValue : text;
     }
 }

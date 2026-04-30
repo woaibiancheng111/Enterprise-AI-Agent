@@ -116,3 +116,80 @@ export interface LoginResponse {
   expiresAt: number;
   user: UserProfile;
 }
+
+export type WorkflowApplicationType = "leave" | "reimbursement";
+export type WorkflowApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface WorkflowApplication {
+  type: WorkflowApplicationType;
+  applicationId: string;
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  applicationType: string;
+  startDate: string | null;
+  endDate: string | null;
+  days: number | null;
+  amount: number | null;
+  description: string;
+  invoiceNumber: string | null;
+  status: WorkflowApplicationStatus | string;
+  applyDate: string;
+  reviewerId: string | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
+}
+
+export interface WorkflowApplicationListResponse {
+  success: boolean;
+  count: number;
+  applications: WorkflowApplication[];
+}
+
+export interface ReviewRequest {
+  decision: "APPROVED" | "REJECTED";
+  comment: string;
+}
+
+export interface ReviewResponse {
+  success: boolean;
+  message: string;
+  application: WorkflowApplication;
+}
+
+export interface EmployeeCard {
+  employeeId: string;
+  name: string;
+  department: string;
+  position: string;
+  email: string;
+  phone: string;
+  joinDate: string;
+}
+
+export interface LeaveBalance {
+  employeeId: string;
+  annualLeave: number;
+  sickLeave: number;
+  marriageLeave: number;
+  maternityLeave: number;
+}
+
+export interface EmployeeListResponse {
+  success: boolean;
+  count: number;
+  employees: EmployeeCard[];
+}
+
+export interface EmployeeOverviewResponse {
+  success: boolean;
+  employee: EmployeeCard | null;
+  leaveBalance: LeaveBalance | null;
+  applications: WorkflowApplication[];
+  summary: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    total: number;
+  };
+}

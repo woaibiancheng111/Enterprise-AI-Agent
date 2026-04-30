@@ -221,7 +221,10 @@ public class EmployeeServiceTools {
                 application.getDays(),
                 application.getReason(),
                 application.getStatus(),
-                application.getApplyDate().format(DATE_FORMATTER)
+                application.getApplyDate().format(DATE_FORMATTER),
+                application.getReviewerId(),
+                application.getReviewComment(),
+                application.getReviewedAt() == null ? null : application.getReviewedAt().toString()
         );
     }
 
@@ -234,7 +237,10 @@ public class EmployeeServiceTools {
                 application.getDescription(),
                 application.getInvoiceNumber(),
                 application.getStatus(),
-                application.getApplyDate().format(DATE_FORMATTER)
+                application.getApplyDate().format(DATE_FORMATTER),
+                application.getReviewerId(),
+                application.getReviewComment(),
+                application.getReviewedAt() == null ? null : application.getReviewedAt().toString()
         );
     }
 
@@ -302,10 +308,14 @@ public class EmployeeServiceTools {
         private String reason;
         private String status;
         private String applyDate;
+        private String reviewerId;
+        private String reviewComment;
+        private String reviewedAt;
 
         public LeaveApplicationStatus(String applicationId, String employeeId, String leaveType,
                                       String startDate, String endDate, int days, String reason,
-                                      String status, String applyDate) {
+                                      String status, String applyDate, String reviewerId,
+                                      String reviewComment, String reviewedAt) {
             this.applicationId = applicationId;
             this.employeeId = employeeId;
             this.leaveType = leaveType;
@@ -315,6 +325,9 @@ public class EmployeeServiceTools {
             this.reason = reason;
             this.status = status;
             this.applyDate = applyDate;
+            this.reviewerId = reviewerId;
+            this.reviewComment = reviewComment;
+            this.reviewedAt = reviewedAt;
         }
     }
 
@@ -341,10 +354,14 @@ public class EmployeeServiceTools {
         private String invoiceNumber;
         private String status;
         private String applyDate;
+        private String reviewerId;
+        private String reviewComment;
+        private String reviewedAt;
 
         public ReimbursementStatus(String applicationId, String employeeId, String type,
                                    double amount, String description, String invoiceNumber,
-                                   String status, String applyDate) {
+                                   String status, String applyDate, String reviewerId,
+                                   String reviewComment, String reviewedAt) {
             this.applicationId = applicationId;
             this.employeeId = employeeId;
             this.type = type;
@@ -353,6 +370,9 @@ public class EmployeeServiceTools {
             this.invoiceNumber = invoiceNumber;
             this.status = status;
             this.applyDate = applyDate;
+            this.reviewerId = reviewerId;
+            this.reviewComment = reviewComment;
+            this.reviewedAt = reviewedAt;
         }
     }
 }

@@ -1,13 +1,18 @@
 import axios from "axios";
 import type {
   DigitalTeamResponse,
+  EmployeeListResponse,
+  EmployeeOverviewResponse,
   LoginResponse,
   McpChatResponse,
   McpStatus,
   McpToolCard,
+  ReviewRequest,
+  ReviewResponse,
   ReadyCapability,
   TicketResponse,
-  UserProfile
+  UserProfile,
+  WorkflowApplicationListResponse
 } from "../types/enterprise";
 
 const API_BASE_PATH = import.meta.env.VITE_API_BASE_PATH || "/api";
@@ -224,5 +229,58 @@ export async function deleteDocument(filename: string): Promise<{ success: boole
 
 export async function reloadKnowledgeBase(): Promise<{ success: boolean; message: string }> {
   const { data } = await http.post<{ success: boolean; message: string }>("/knowledge/reload");
+  return data;
+}
+
+// ==================== 审批管理 API ====================
+
+export async function listWorkflowApplications(
+  type: "all" | "leave" | "reimbursement",
+  status: "all" | "PENDING" | "APPROVED" | "REJECTED"
+): Promise<WorkflowApplicationListResponse> {
+  const { data } = await http.get<WorkflowApplicationListResponse>("/workflow/applications", {
+    params: { type, status }
+  });
+  return data;
+}
+
+export async function reviewLeaveApplication(
+  applicationId: string,
+  request: ReviewRequest
+): Promise<ReviewResponse> {
+  const { data } = await http.post<ReviewResponse>(`/workflow/leave/${encodeURIComponent(applicationId)}/review`, request);
+  return data;
+}
+
+export async function reviewReimbursementApplication(
+  applicationId: string,
+  request: ReviewRequest
+): Promise<ReviewResponse> {
+  const { data } = await http.post<ReviewResponse>(
+    `/workflow/reimbursement/${encodeURIComponent(applicationId)}/review`,
+    request
+  );
+  return data;
+}
+
+// ==================== 员工视图 API ====================
+
+export async function listEmployees(
+  keyword: string = "",
+  department: string = "all"
+): Promise<EmployeeListResponse> {
+  const { data } = await http.get<EmployeeListResponse>("/employees", {
+    params: { keyword, department }
+  });
+  return data;
+}
+
+export async function getMyEmployeeOverview(): Promise<EmployeeOverviewResponse> {
+  const { data } = await http.get<EmployeeOverviewResponse>("/employees/me/overview");
+  return data;
+}
+
+export async function getEmployeeOverview(employeeId: string): Promise<EmployeeOverviewResponse> {
+  const { data } = await http.get<EmployeeOverviewResponse>(`/employees/${encodeURIComponent(employeeId)}/overview`);
   return data;
 }

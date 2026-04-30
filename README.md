@@ -240,10 +240,10 @@ VITE_API_BASE_PATH=/api
 - 登录页、当前账号展示和退出登录。
 - 消息区 Markdown 渲染与安全过滤。
 - 支持 SSE 流式回答。
-- 数字团队处理过程折叠卡片。
 - 参考来源折叠卡片，点击展开，再次点击收起。
 - MCP 服务状态和工具数量展示。
 - 知识库文档上传、删除和刷新。
+- HR/Admin 审批管理入口，支持请假和报销申请筛选、通过、驳回。
 
 ---
 
@@ -304,6 +304,23 @@ Authorization: Bearer <token>
 | DELETE | `/api/knowledge/file/{filename}` | 删除文档 |
 | POST | `/api/knowledge/reload` | 重载知识库 |
 
+### 审批管理
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/api/workflow/applications` | 查询请假/报销申请列表，仅 HR/Admin 可用 |
+| POST | `/api/workflow/leave/{applicationId}/review` | 审批请假申请，仅 HR/Admin 可用 |
+| POST | `/api/workflow/reimbursement/{applicationId}/review` | 审批报销申请，仅 HR/Admin 可用 |
+
+审批请求体：
+
+```json
+{
+  "decision": "APPROVED",
+  "comment": "审批通过"
+}
+```
+
 API 文档地址：
 
 ```text
@@ -344,6 +361,16 @@ curl "http://localhost:8123/api/enterprise/rag-chat?message=如何申请年假" 
 curl -X POST "http://localhost:8123/api/knowledge/upload" \
   -H "Authorization: Bearer <token>" \
   -F "file=@/path/to/your/document.md"
+
+# HR 查询待审批申请
+curl "http://localhost:8123/api/workflow/applications?type=all&status=PENDING" \
+  -H "Authorization: Bearer <hr-token>"
+
+# HR 审批请假申请
+curl -X POST "http://localhost:8123/api/workflow/leave/L0001/review" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <hr-token>" \
+  -d "{\"decision\":\"APPROVED\",\"comment\":\"审批通过\"}"
 ```
 
 ---
@@ -401,8 +428,8 @@ LLM 生成回复
 |------|--------|------|
 | 员工信息 | `employees` | 员工 ID、姓名、部门、职位、邮箱、电话、入职日期 |
 | 假期余额 | `leave_balances` | 年假、病假、婚假、产假余额 |
-| 请假申请 | `leave_applications` | 申请编号、员工、假期类型、起止日期、状态 |
-| 报销申请 | `reimbursement_applications` | 申请编号、员工、类型、金额、发票号、状态 |
+| 请假申请 | `leave_applications` | 申请编号、员工、假期类型、起止日期、状态、审批人、审批意见、审批时间 |
+| 报销申请 | `reimbursement_applications` | 申请编号、员工、类型、金额、发票号、状态、审批人、审批意见、审批时间 |
 | 登录账号 | `employee_users` | 用户名、密码摘要、关联员工、展示名、角色、启用状态 |
 | 工具审计 | `tool_call_logs` | 工具名称、调用参数、目标员工、结果摘要、成功状态、调用时间 |
 
@@ -417,6 +444,14 @@ EmployeeServiceTools
 
 MySQL 数据库 `enterprise_ai_agent` 需要先手动创建；表结构由 `schema.sql` 创建，初始化数据由 `data.sql` 写入。后续通过工具提交的请假、报销申请会真实写入 MySQL，应用重启后仍可查询。
 
+应用启动时会自动检查并补齐审批字段：
+
+```text
+reviewer_id
+review_comment
+reviewed_at
+```
+
 工具调用审计已接入员工服务工具，每次查询员工、查询假期、提交请假、提交报销或查询申请状态都会写入 `tool_call_logs`。后端提供审计查询接口：
 
 ```text
@@ -428,9 +463,10 @@ GET /api/audit/tool-calls?toolName=applyLeave&limit=20
 权限规则：
 
 - `EMPLOYEE` 只能访问自己绑定员工编号的数据，例如 `zhangsan` 只能访问 `E001`。
-- `HR` 和 `ADMIN` 可以访问所有员工业务数据。
+- `HR` 和 `ADMIN` 可以访问所有员工业务数据，并审批请假/报销申请。
 - 工具审计日志仅允许 `HR` 和 `ADMIN` 查询。
 - 审计日志会记录真实调用账号的 `user_id`，不再固定为 `system`。
+- 非 `PENDING` 状态申请不能重复审批。
 
 会话记忆隔离：
 

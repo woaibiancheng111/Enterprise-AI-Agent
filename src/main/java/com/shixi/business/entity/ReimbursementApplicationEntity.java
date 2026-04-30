@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -31,4 +32,10 @@ public class ReimbursementApplicationEntity {
     private String status;
 
     private LocalDate applyDate;
+
+    private String reviewerId;
+
+    private String reviewComment;
+
+    private LocalDateTime reviewedAt;
 }

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -32,4 +33,10 @@ public class LeaveApplicationEntity {
     private String status;
 
     private LocalDate applyDate;
+
+    private String reviewerId;
+
+    private String reviewComment;
+
+    private LocalDateTime reviewedAt;
 }
