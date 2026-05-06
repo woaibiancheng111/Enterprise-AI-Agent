@@ -1,0 +1,27 @@
+# Git 和 IDE 元数据不进入镜像构建上下文
+.git
+.idea
+.vscode
+.cursor
+
+# 构建产物、运行数据和日志不打进镜像
+target
+data
+logs
+*.log
+
+# 本地密钥和环境变量不能进入镜像
+.env
+.env.local
+.mvn_repo
+
+# 前端依赖和构建产物由 Dockerfile 内部重新生成
+frontend/node_modules
+frontend/dist
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# 操作系统临时文件
+**/.DS_Store
+**/Thumbs.db

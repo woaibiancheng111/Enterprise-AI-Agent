@@ -144,17 +144,19 @@ CREATE DATABASE enterprise_ai_agent
 ```yaml
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false
+    url: ${DB_URL:jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 123456
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
 
 enterprise:
   security:
     jwt:
-      secret: ${JWT_SECRET:enterprise-ai-agent-local-secret}
+      secret: ${JWT_SECRET:enterprise-ai-agent-change-me-in-production}
       ttl-seconds: 86400
 ```
+
+本地演示可以使用默认数据库账号；正式部署必须通过环境变量覆盖 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和 `JWT_SECRET`。
 
 启动应用时，Spring Boot 会自动执行 `schema.sql` 和 `data.sql`：
 
@@ -267,14 +269,16 @@ Authorization: Bearer <token>
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | GET | `/api/enterprise/health` | 健康检查 |
-| GET | `/api/enterprise/chat` | 基础对话（含记忆） |
-| GET | `/api/enterprise/rag-chat` | 知识库增强对话 |
-| GET | `/api/enterprise/ticket` | 生成结构化工单 |
-| GET | `/api/enterprise/team-chat` | 数字团队综合办理 |
-| GET | `/api/enterprise/tool-chat` | 企业业务工具对话 |
+| POST | `/api/enterprise/chat` | 基础对话（含记忆） |
+| POST | `/api/enterprise/rag-chat` | 知识库增强对话 |
+| POST | `/api/enterprise/ticket` | 生成结构化工单 |
+| POST | `/api/enterprise/team-chat` | 数字团队综合办理 |
+| POST | `/api/enterprise/tool-chat` | 企业业务工具对话 |
 | GET | `/api/enterprise/chat/stream` | 基础流式对话 |
 | GET | `/api/enterprise/rag-chat/stream` | RAG 流式对话 |
 | GET | `/api/enterprise/tool-chat/stream` | 工具调用流式对话 |
+
+非流式对话接口推荐使用 POST JSON，避免长文本和敏感内容进入 URL。流式接口基于浏览器原生 EventSource，仍使用 GET 查询参数。
 
 ### MCP 集成
 
@@ -282,14 +286,14 @@ Authorization: Bearer <token>
 |------|------|------|
 | GET | `/api/mcp/status` | MCP 服务状态、工具数量和领域 |
 | GET | `/api/mcp/tools` | MCP 工具列表 |
-| GET | `/api/mcp/chat` | MCP 工具增强对话 |
+| POST | `/api/mcp/chat` | MCP 工具增强对话 |
 | POST | `/api/mcp/call` | 按工具名称直接调用 MCP 工具 |
 
 ### 增强 RAG
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| GET | `/api/rag/chat` | 完整 RAG 流程对话 |
+| POST | `/api/rag/chat` | 完整 RAG 流程对话 |
 | GET | `/api/rag/chat/stream` | 流式 RAG 对话 |
 | GET | `/api/rag/search` | 独立知识库检索 |
 | GET | `/api/rag/intent` | 意图识别测试 |
@@ -338,24 +342,32 @@ curl -X POST "http://localhost:8123/api/auth/login" \
   -d "{\"username\":\"zhangsan\",\"password\":\"123456\"}"
 
 # 数字团队综合办理
-curl "http://localhost:8123/api/enterprise/team-chat?message=我想申请明天下午年假，帮我看看余额并处理" \
-  -H "Authorization: Bearer <token>"
+curl -X POST "http://localhost:8123/api/enterprise/team-chat" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"message\":\"我想申请明天下午年假，帮我看看余额并处理\",\"chatId\":\"demo\",\"topK\":5}"
 
 # 业务工具调用
-curl "http://localhost:8123/api/enterprise/tool-chat?message=查询员工E001的假期余额" \
-  -H "Authorization: Bearer <token>"
+curl -X POST "http://localhost:8123/api/enterprise/tool-chat" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"message\":\"查询员工E001的假期余额\",\"chatId\":\"demo\"}"
 
 # MCP 服务状态
 curl "http://localhost:8123/api/mcp/status" \
   -H "Authorization: Bearer <token>"
 
 # MCP 工具增强对话
-curl "http://localhost:8123/api/mcp/chat?message=查询员工E001的信息" \
-  -H "Authorization: Bearer <token>"
+curl -X POST "http://localhost:8123/api/mcp/chat" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"message\":\"查询员工E001的信息\"}"
 
 # 知识库对话
-curl "http://localhost:8123/api/enterprise/rag-chat?message=如何申请年假" \
-  -H "Authorization: Bearer <token>"
+curl -X POST "http://localhost:8123/api/enterprise/rag-chat" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"message\":\"如何申请年假\",\"chatId\":\"demo\"}"
 
 # 上传知识库文档
 curl -X POST "http://localhost:8123/api/knowledge/upload" \

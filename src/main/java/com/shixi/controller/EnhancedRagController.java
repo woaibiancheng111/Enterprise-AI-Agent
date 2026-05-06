@@ -72,6 +72,23 @@ public class EnhancedRagController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/chat")
+    @Operation(summary = "增强版 RAG 对话", description = "使用请求体提交用户消息，避免长文本进入 URL")
+    public ResponseEntity<Map<String, Object>> ragChat(@RequestBody RagChatRequest request) {
+        String scopedChatId = conversationIdResolver.resolve(request.chatId());
+        int topK = request.topKOrDefault();
+        log.info("增强版 RAG 对话: message={}, chatId={}, topK={}", request.message(), scopedChatId, topK);
+
+        String answer = enhancedRagService.chat(request.message(), scopedChatId, topK);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("answer", answer);
+        result.put("chatId", scopedChatId);
+
+        return ResponseEntity.ok(result);
+    }
+
     /**
      * 增强版 RAG 对话（流式）
      */
@@ -202,5 +219,12 @@ public class EnhancedRagController {
             case FEEDBACK -> "投诉建议类";
             case GENERAL -> "一般对话";
         };
+    }
+
+    public record RagChatRequest(String message, String chatId, Integer topK) {
+
+        public int topKOrDefault() {
+            return topK == null || topK <= 0 ? 5 : topK;
+        }
     }
 }

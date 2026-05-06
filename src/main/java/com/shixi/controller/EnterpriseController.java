@@ -3,6 +3,8 @@ package com.shixi.controller;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,14 +37,29 @@ public class EnterpriseController {
         return enterpriseApp.doChat(message, resolveChatId(chatId));
     }
 
+    @PostMapping("/chat")
+    public String chat(@RequestBody ChatRequest request) {
+        return enterpriseApp.doChat(request.message(), resolveChatId(request.chatId()));
+    }
+
     @GetMapping("/rag-chat")
     public String ragChat(@RequestParam String message, @RequestParam(defaultValue = "default-user") String chatId) {
         return enterpriseApp.doChatWithKnowledgeBase(message, resolveChatId(chatId));
     }
 
+    @PostMapping("/rag-chat")
+    public String ragChat(@RequestBody ChatRequest request) {
+        return enterpriseApp.doChatWithKnowledgeBase(request.message(), resolveChatId(request.chatId()));
+    }
+
     @GetMapping("/ticket")
     public Object generateTicket(@RequestParam String message, @RequestParam(defaultValue = "default-user") String chatId) {
         return enterpriseApp.doChatWithReport(message, resolveChatId(chatId));
+    }
+
+    @PostMapping("/ticket")
+    public Object generateTicket(@RequestBody ChatRequest request) {
+        return enterpriseApp.doChatWithReport(request.message(), resolveChatId(request.chatId()));
     }
 
     @GetMapping("/team-chat")
@@ -51,6 +68,11 @@ public class EnterpriseController {
             @RequestParam(defaultValue = "default-user") String chatId,
             @RequestParam(defaultValue = "5") int topK) {
         return digitalTeamService.process(message, resolveChatId(chatId), topK);
+    }
+
+    @PostMapping("/team-chat")
+    public DigitalTeamService.DigitalTeamResponse teamChat(@RequestBody ChatRequest request) {
+        return digitalTeamService.process(request.message(), resolveChatId(request.chatId()), request.topKOrDefault());
     }
 
     @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -101,6 +123,11 @@ public class EnterpriseController {
         return enterpriseApp.doChatWithTools(message, resolveChatId(chatId));
     }
 
+    @PostMapping("/tool-chat")
+    public String toolChat(@RequestBody ChatRequest request) {
+        return enterpriseApp.doChatWithTools(request.message(), resolveChatId(request.chatId()));
+    }
+
     @GetMapping(value = "/tool-chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> toolChatStream(
             @RequestParam String message,
@@ -122,5 +149,12 @@ public class EnterpriseController {
 
     private String resolveChatId(String chatId) {
         return conversationIdResolver.resolve(chatId);
+    }
+
+    public record ChatRequest(String message, String chatId, Integer topK) {
+
+        public int topKOrDefault() {
+            return topK == null || topK <= 0 ? 5 : topK;
+        }
     }
 }

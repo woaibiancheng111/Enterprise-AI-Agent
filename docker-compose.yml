@@ -1,0 +1,82 @@
+services:
+  # MySQL 业务数据库：存储员工、账号、请假、报销和审计数据
+  mysql:
+    image: mysql:8.4
+    container_name: enterprise-ai-agent-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: enterprise_ai_agent
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-root-password}
+      MYSQL_USER: ${MYSQL_USER:-enterprise}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me-db-password}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      # 本地调试可暴露 3306；生产环境建议不要对公网开放
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      # 数据库持久化，避免容器删除后数据丢失
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # 等 MySQL 真正可用后再启动后端
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # Spring Boot 后端：提供 AI 对话、RAG、MCP、审批和鉴权接口
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enterprise-ai-agent-backend:latest
+    container_name: enterprise-ai-agent-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # docker profile 只作为容器运行标识，配置仍主要来自 application.yml 和环境变量
+      SPRING_PROFILES_ACTIVE: docker
+      # DashScope API Key，必须在 .env 中配置
+      SPRING_AI_DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      # 后端连接 compose 内部的 mysql 服务名
+      DB_URL: jdbc:mysql://mysql:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: ${MYSQL_USER:-enterprise}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-change-me-db-password}
+      # JWT 签名密钥，生产环境必须替换为足够长的随机字符串
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
+      # 上传知识库文档的持久化目录
+      KNOWLEDGE_BASE_PATH: /app/data/documents
+      TZ: Asia/Shanghai
+    ports:
+      # 可选暴露后端端口；前端容器会通过内部网络访问后端
+      - "${BACKEND_PORT:-8123}:8123"
+    volumes:
+      # 持久化用户上传的知识库文档
+      - knowledge-data:/app/data/documents
+
+  # Vue 前端：Nginx 托管静态页面，并把 /api 代理到后端
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # 前端请求统一走同域 /api，避免浏览器跨域问题
+        VITE_API_BASE_PATH: /api
+    image: enterprise-ai-agent-frontend:latest
+    container_name: enterprise-ai-agent-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # 对外访问入口，生产环境通常只开放这个端口或接入 443 HTTPS
+      - "${FRONTEND_PORT:-80}:80"
+
+volumes:
+  # MySQL 数据卷
+  mysql-data:
+  # 知识库上传文件数据卷
+  knowledge-data:

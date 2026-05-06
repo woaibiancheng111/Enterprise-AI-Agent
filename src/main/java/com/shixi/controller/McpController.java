@@ -39,9 +39,17 @@ public class McpController {
         return mcpIntegrationService.chat(message);
     }
 
+    @PostMapping("/chat")
+    public McpIntegrationService.McpChatResponse chat(@RequestBody McpChatRequest request) {
+        return mcpIntegrationService.chat(request.message());
+    }
+
     @PostMapping("/call")
     public ResponseEntity<McpIntegrationService.McpCallResponse> call(@RequestBody McpToolCallRequest request) {
         return ResponseEntity.ok(mcpIntegrationService.callTool(request.toolName(), request.arguments()));
+    }
+
+    public record McpChatRequest(String message) {
     }
 
     public record McpToolCallRequest(String toolName, Map<String, Object> arguments) {

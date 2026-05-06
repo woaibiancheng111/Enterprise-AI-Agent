@@ -29,7 +29,7 @@ public class ToolOrchestrationService {
     private static final Pattern LEAVE_APPLICATION_PATTERN = Pattern.compile("[申请办理].*假|请假|年假|病假|事假|婚假|产假");
     private static final Pattern LEAVE_STATUS_PATTERN = Pattern.compile("\\bL\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern REIMBURSEMENT_STATUS_PATTERN = Pattern.compile("\\bR\\d{4}\\b", Pattern.CASE_INSENSITIVE);
-    private static final Pattern MONEY_PATTERN = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(?:元|块|rmb|RMB)?");
+    private static final Pattern MONEY_PATTERN = Pattern.compile("(?<![A-Za-z])(?:金额)?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:元|块|rmb|RMB)");
 
     private final TimeTools timeTools;
     private final EmployeeServiceTools employeeServiceTools;

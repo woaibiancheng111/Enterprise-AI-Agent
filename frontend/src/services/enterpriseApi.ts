@@ -74,12 +74,7 @@ export async function requestEnterprise(
   chatId: string
 ): Promise<string> {
   const endpoint = endpointMap[capability];
-  const { data } = await http.get<string | TicketResponse>(endpoint, {
-    params: {
-      message,
-      chatId
-    }
-  });
+  const { data } = await http.post<string | TicketResponse>(endpoint, { message, chatId });
   if (typeof data === "string") {
     return data;
   }
@@ -95,13 +90,7 @@ export async function requestDigitalTeam(
   chatId: string,
   topK: number
 ): Promise<DigitalTeamResponse> {
-  const { data } = await http.get<DigitalTeamResponse>("/enterprise/team-chat", {
-    params: {
-      message,
-      chatId,
-      topK
-    }
-  });
+  const { data } = await http.post<DigitalTeamResponse>("/enterprise/team-chat", { message, chatId, topK });
   return data;
 }
 

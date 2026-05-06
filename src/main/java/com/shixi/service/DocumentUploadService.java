@@ -66,6 +66,10 @@ public class DocumentUploadService {
 
         // 保存文件到本地目录
         Path targetPath = Paths.get(basePath, filename);
+        Path parent = targetPath.getParent();
+        if (parent != null && !Files.exists(parent)) {
+            Files.createDirectories(parent);
+        }
 
         // 如果文件已存在，先删除
         if (Files.exists(targetPath)) {

@@ -26,7 +26,7 @@ public class JwtTokenService {
 
     public JwtTokenService(
             ObjectMapper objectMapper,
-            @Value("${enterprise.security.jwt.secret:enterprise-ai-agent-local-secret}") String secret,
+            @Value("${enterprise.security.jwt.secret:enterprise-ai-agent-change-me-in-production}") String secret,
             @Value("${enterprise.security.jwt.ttl-seconds:86400}") long ttlSeconds) {
         this.objectMapper = objectMapper;
         this.secret = secret.getBytes(StandardCharsets.UTF_8);

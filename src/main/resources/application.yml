@@ -1,8 +1,8 @@
 spring:
   application:
-    name: health-ai-agent
+    name: enterprise-ai-agent
   profiles:
-    active: local
+    active: ${SPRING_PROFILES_ACTIVE:local}
   ai:
     mcp:
       server:
@@ -13,10 +13,10 @@ spring:
         sse-message-endpoint: /mcp/message
         tool-change-notification: true
   datasource:
-    url: jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false
+    url: ${DB_URL:jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 123456
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
   sql:
     init:
       mode: always
@@ -80,10 +80,10 @@ rag:
 
 # ==================== 知识库配置 ====================
 knowledge:
-  base-path: src/main/resources/documents
+  base-path: ${KNOWLEDGE_BASE_PATH:src/main/resources/documents}
 
 enterprise:
   security:
     jwt:
-      secret: ${JWT_SECRET:enterprise-ai-agent-local-secret}
+      secret: ${JWT_SECRET:enterprise-ai-agent-change-me-in-production}
       ttl-seconds: 86400

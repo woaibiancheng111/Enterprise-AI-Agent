@@ -2,7 +2,10 @@
 application-local.yml
 .mvn-settings.xml
 data/
+docs/
 HELP.md
+.env
+.env.local
 
 ### Maven ###
 .mvn_repo/
