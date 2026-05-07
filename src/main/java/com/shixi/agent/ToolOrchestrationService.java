@@ -3,6 +3,8 @@ package com.shixi.agent;
 import com.shixi.mcp.EmployeeServiceTools;
 import com.shixi.mcp.KnowledgeBaseTools;
 import com.shixi.mcp.TimeTools;
+import com.shixi.security.CurrentUser;
+import com.shixi.security.CurrentUserContext;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -30,6 +32,10 @@ public class ToolOrchestrationService {
     private static final Pattern LEAVE_STATUS_PATTERN = Pattern.compile("\\bL\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern REIMBURSEMENT_STATUS_PATTERN = Pattern.compile("\\bR\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern MONEY_PATTERN = Pattern.compile("(?<![A-Za-z])(?:金额)?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:元|块|rmb|RMB)");
+    private static final Pattern NAME_BEFORE_BUSINESS_WORD_PATTERN = Pattern.compile(
+            "([\\u4e00-\\u9fa5]{2,4})(?:的)?(?:假期|年假|病假|事假|婚假|产假|余额|基本信息|员工信息|个人资料|员工资料|报销|请假)"
+    );
+    private static final Pattern CHINESE_WORD_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{2,4}");
 
     private final TimeTools timeTools;
     private final EmployeeServiceTools employeeServiceTools;
@@ -56,17 +62,17 @@ public class ToolOrchestrationService {
             return statusResult;
         }
 
-        Optional<String> employeeId = extractEmployeeId(message);
-        if (employeeId.isPresent() && containsAny(normalized, "假期余额", "年假余额", "剩几天", "还剩")) {
+        Optional<String> employeeId = resolveEmployeeId(message, normalized);
+        if (employeeId.isPresent() && isLeaveBalanceIntent(normalized)) {
             return Optional.of(formatLeaveBalance(employeeId.get()));
         }
 
-        if (employeeId.isPresent() && containsAny(normalized, "基本信息", "员工信息", "查询员工", "是谁", "邮箱", "电话")) {
+        if (employeeId.isPresent() && isEmployeeInfoIntent(normalized)) {
             return Optional.of(formatEmployeeInfo(employeeId.get()));
         }
 
         if (employeeId.isPresent() && LEAVE_APPLICATION_PATTERN.matcher(message).find()
-                && containsAny(normalized, "申请", "办理", "帮员工")) {
+                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "我要", "我想")) {
             return Optional.of(applyLeave(message, employeeId.get()));
         }
 
@@ -330,6 +336,91 @@ public class ToolOrchestrationService {
             return Optional.of(matcher.group().toUpperCase(Locale.ROOT));
         }
         return Optional.empty();
+    }
+
+    private Optional<String> resolveEmployeeId(String message, String normalized) {
+        Optional<String> explicitEmployeeId = extractEmployeeId(message);
+        if (explicitEmployeeId.isPresent()) {
+            return explicitEmployeeId;
+        }
+
+        Optional<String> currentEmployeeId = CurrentUserContext.get()
+                .map(CurrentUser::employeeId)
+                .filter(employeeId -> employeeId != null && !employeeId.isBlank());
+        if (currentEmployeeId.isPresent() && containsAny(normalized, "我的", "我", "自己", "本人")) {
+            return currentEmployeeId;
+        }
+
+        return resolveEmployeeIdByName(message);
+    }
+
+    private Optional<String> resolveEmployeeIdByName(String message) {
+        Optional<String> employeeId = resolveEmployeeIdByNamePattern(NAME_BEFORE_BUSINESS_WORD_PATTERN.matcher(message));
+        if (employeeId.isPresent()) {
+            return employeeId;
+        }
+        return resolveEmployeeIdByNamePattern(CHINESE_WORD_PATTERN.matcher(message));
+    }
+
+    private Optional<String> resolveEmployeeIdByNamePattern(Matcher matcher) {
+        while (matcher.find()) {
+            String name = matcher.groupCount() >= 1 ? matcher.group(1) : matcher.group();
+            if (isCommonNonNameWord(name)) {
+                continue;
+            }
+            Optional<String> employeeId = findEmployeeIdByNameCandidate(name);
+            if (employeeId.isPresent()) {
+                return employeeId;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> findEmployeeIdByNameCandidate(String candidate) {
+        for (String name : buildNameCandidates(candidate)) {
+            if (isCommonNonNameWord(name)) {
+                continue;
+            }
+            try {
+                List<String> employeeIds = employeeServiceTools.findEmployeeIdsByName(name);
+                if (employeeIds != null && !employeeIds.isEmpty()) {
+                    return Optional.of(employeeIds.get(0));
+                }
+            } catch (Exception ignored) {
+                // 姓名识别是自然语言兜底，单个候选失败后继续尝试后续候选。
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<String> buildNameCandidates(String candidate) {
+        if (candidate.length() <= 2) {
+            return List.of(candidate);
+        }
+        List<String> names = new java.util.ArrayList<>();
+        names.add(candidate);
+        names.add(candidate.substring(candidate.length() - 2));
+        if (candidate.length() >= 3) {
+            names.add(candidate.substring(candidate.length() - 3));
+        }
+        return names.stream().distinct().toList();
+    }
+
+    private boolean isLeaveBalanceIntent(String normalized) {
+        return containsAny(normalized,
+                "假期余额", "年假余额", "剩几天", "还剩", "剩余假期", "假期还", "查假期", "查询假期", "我的假期");
+    }
+
+    private boolean isEmployeeInfoIntent(String normalized) {
+        return containsAny(normalized,
+                "基本信息", "员工信息", "查询员工", "员工资料", "个人资料", "我的信息", "我的资料", "是谁", "邮箱", "电话");
+    }
+
+    private boolean isCommonNonNameWord(String word) {
+        return List.of(
+                "员工", "假期", "年假", "病假", "婚假", "产假", "事假", "余额", "信息", "基本",
+                "查询", "帮我", "申请", "报销", "今天", "工作", "流程", "制度", "我的", "自己"
+        ).contains(word);
     }
 
     private Optional<String> extractDate(String message) {

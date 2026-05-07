@@ -100,7 +100,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section v-if="canManageKnowledgeBase" class="card">
         <h2>知识库管理</h2>
         <KnowledgeBaseUpload />
       </section>
@@ -692,6 +692,8 @@ const canManageWorkflow = computed(() =>
   currentUser.value?.role === "HR" || currentUser.value?.role === "ADMIN"
 );
 
+const canManageKnowledgeBase = computed(() => currentUser.value?.role === "ADMIN");
+
 const workspaceTitle = computed(() => {
   if (isWorkflowMode.value) return "审批管理后台";
   if (isEmployeeMode.value) return canManageWorkflow.value ? "员工管理视图" : "我的员工视图";
@@ -760,14 +762,14 @@ const healthStatusClass = computed(() => {
   return "idle";
 });
 
-const quickPromptsMap: Record<ReadyCapability, string[]> = {
+const employeeQuickPromptsMap: Record<ReadyCapability, string[]> = {
   "team-chat": [
-    "我想申请年假，但不确定还剩几天，帮我处理一下",
-    "报销一直没人处理，我有点着急，帮我看看该怎么办",
-    "请按公司制度说明差旅报销流程，并判断是否需要转人工"
+    "我想请年假，帮我先看余额再告诉我怎么申请",
+    "我的报销还没处理，帮我判断下一步该找谁",
+    "我想了解差旅报销流程，顺便帮我整理待办"
   ],
   chat: [
-    "请介绍一下你能提供哪些帮助",
+    "请介绍一下你能帮我办理哪些员工服务",
     "我想申请年假，流程是什么？",
     "报销打车费需要准备什么材料？"
   ],
@@ -777,14 +779,47 @@ const quickPromptsMap: Record<ReadyCapability, string[]> = {
     "报销单据最晚什么时候提交？"
   ],
   ticket: [
-    "帮我生成一个办公用品申领工单",
-    "帮我整理请假申请的处理工单",
-    "帮我创建报销异常处理工单"
+    "帮我整理一个请假申请工单",
+    "帮我整理一个报销异常工单",
+    "帮我生成一个办公用品申领工单"
   ],
   "tool-chat": [
+    "查一下我的假期余额",
+    "帮我查我的基本信息",
+    "今天星期几？到月底还有多少个工作日"
+  ],
+  mcp: [
+    "列出当前 MCP Server 上可用的工具",
+    "通过 MCP 查询我的假期余额",
+    "通过 MCP 帮我看今天到月底的工作日"
+  ]
+};
+
+const managerQuickPromptsMap: Record<ReadyCapability, string[]> = {
+  "team-chat": [
+    "张三想申请年假，帮我判断余额、流程和下一步动作",
+    "报销处理超时，帮我分析风险并生成跟进建议",
+    "请按公司制度说明差旅报销流程，并判断是否需要转人工"
+  ],
+  chat: [
+    "请介绍一下你能提供哪些 HR/Admin 支持",
+    "员工申请年假，HR 审批时要看哪些信息？",
+    "报销打车费需要准备什么材料？"
+  ],
+  "rag-chat": [
+    "请按公司制度说明请假审批流程",
+    "差旅报销金额上限是多少？",
+    "报销单据最晚什么时候提交？"
+  ],
+  ticket: [
+    "帮我生成一个员工请假处理工单",
+    "帮我创建报销异常处理工单",
+    "帮我整理办公用品申领工单"
+  ],
+  "tool-chat": [
+    "帮我查询张三的假期余额",
     "帮我查询员工 E001 的基本信息",
-    "帮员工 E001 申请 3 天年假，开始日期 2026-05-01",
-    "今天是几号星期几？帮我算一下到月底还有多少个工作日"
+    "帮员工 E001 申请 3 天年假，开始日期 2026-05-01"
   ],
   mcp: [
     "列出当前 MCP Server 上可用的工具",
@@ -792,7 +827,10 @@ const quickPromptsMap: Record<ReadyCapability, string[]> = {
     "通过 MCP 帮员工 E001 查询假期余额"
   ]
 };
-const quickPrompts = computed(() => quickPromptsMap[selectedMode.value]);
+
+const quickPrompts = computed(() =>
+  (canManageWorkflow.value ? managerQuickPromptsMap : employeeQuickPromptsMap)[selectedMode.value]
+);
 
 function appendMessage(message: Omit<ChatMessage, "id">): void {
   messages.value.push({

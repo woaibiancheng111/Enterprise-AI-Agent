@@ -1,6 +1,9 @@
 package com.shixi.controller;
 
 import com.shixi.service.DocumentUploadService;
+import com.shixi.security.CurrentUser;
+import com.shixi.security.CurrentUserContext;
+import com.shixi.security.ForbiddenException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.http.MediaType;
@@ -25,6 +28,7 @@ public class KnowledgeBaseController {
 
     @GetMapping("/list")
     public ResponseEntity<Map<String, Object>> listDocuments() {
+        assertAdmin();
         List<String> documents = documentUploadService.listDocumentFiles();
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
@@ -36,6 +40,7 @@ public class KnowledgeBaseController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadDocument(
             @RequestParam("file") MultipartFile file) {
+        assertAdmin();
         log.info("收到文件上传请求: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
         
         Map<String, Object> result = new HashMap<>();
@@ -83,6 +88,7 @@ public class KnowledgeBaseController {
 
     @DeleteMapping("/file/{filename}")
     public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable String filename) {
+        assertAdmin();
         Map<String, Object> result = new HashMap<>();
         try {
             boolean deleted = documentUploadService.deleteDocument(filename);
@@ -99,6 +105,7 @@ public class KnowledgeBaseController {
 
     @PostMapping("/reload")
     public ResponseEntity<Map<String, Object>> reloadKnowledgeBase() {
+        assertAdmin();
         Map<String, Object> result = new HashMap<>();
         try {
             documentUploadService.reloadVectorStore();
@@ -123,5 +130,13 @@ public class KnowledgeBaseController {
 
     private boolean isSupportedFileType(String extension) {
         return extension.equals("md");
+    }
+
+    private CurrentUser assertAdmin() {
+        CurrentUser user = CurrentUserContext.require();
+        if (!user.isAdmin()) {
+            throw new ForbiddenException("当前账号无权管理知识库");
+        }
+        return user;
     }
 }

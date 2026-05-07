@@ -3,8 +3,12 @@ package com.shixi.agent;
 import com.shixi.mcp.EmployeeServiceTools;
 import com.shixi.mcp.KnowledgeBaseTools;
 import com.shixi.mcp.TimeTools;
+import com.shixi.security.CurrentUser;
+import com.shixi.security.CurrentUserContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,6 +23,11 @@ class ToolOrchestrationServiceTest {
     private final ToolOrchestrationService service =
             new ToolOrchestrationService(timeTools, employeeServiceTools, knowledgeBaseTools);
 
+    @AfterEach
+    void tearDown() {
+        CurrentUserContext.clear();
+    }
+
     @Test
     void handlesLeaveBalanceWithDeterministicToolPath() {
         when(employeeServiceTools.getLeaveBalance("E001"))
@@ -29,6 +38,32 @@ class ToolOrchestrationServiceTest {
         assertTrue(answer.isPresent());
         assertTrue(answer.get().contains("getLeaveBalance"));
         assertTrue(answer.get().contains("年假：8 天"));
+    }
+
+    @Test
+    void resolvesCurrentEmployeeForSelfServiceLeaveBalance() {
+        CurrentUserContext.set(new CurrentUser("U001", "zhangsan", "E001", "张三", "EMPLOYEE"));
+        when(employeeServiceTools.getLeaveBalance("E001"))
+                .thenReturn(new EmployeeServiceTools.LeaveBalanceInfo("E001", 15, 10, 5, 3));
+
+        Optional<String> answer = service.tryHandle("查一下我的假期");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("员工 `E001`"));
+        assertTrue(answer.get().contains("年假：15 天"));
+    }
+
+    @Test
+    void resolvesEmployeeNameForManagerToolRequest() {
+        when(employeeServiceTools.findEmployeeIdsByName("张三")).thenReturn(List.of("E001"));
+        when(employeeServiceTools.getLeaveBalance("E001"))
+                .thenReturn(new EmployeeServiceTools.LeaveBalanceInfo("E001", 15, 10, 5, 3));
+
+        Optional<String> answer = service.tryHandle("帮我查询张三的假期余额");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("getLeaveBalance"));
+        assertTrue(answer.get().contains("员工 `E001`"));
     }
 
     @Test
