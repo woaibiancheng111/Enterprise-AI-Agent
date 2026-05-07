@@ -1620,11 +1620,11 @@ onUnmounted(() => {
 .employee-panel {
   grid-row: 2 / -1;
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
   min-height: 0;
-  padding: 18px 20px;
-  overflow: hidden;
+  padding: 16px 20px 20px;
+  overflow: auto;
 }
 
 .employee-directory {
@@ -1711,10 +1711,10 @@ onUnmounted(() => {
 
 .employee-overview {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
-  gap: 12px;
-  padding: 14px;
-  overflow: hidden;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  overflow: auto;
 }
 
 .employee-toolbar {
@@ -1738,13 +1738,16 @@ onUnmounted(() => {
 }
 
 .employee-profile-card {
-  display: flex;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
   align-items: center;
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 16px;
-  padding: 16px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(15, 23, 42, 0.46));
+  border-radius: 14px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(8, 47, 73, 0.16)),
+    rgba(15, 23, 42, 0.5);
 }
 
 .employee-avatar-lg {
@@ -1759,6 +1762,7 @@ onUnmounted(() => {
   margin: 5px 0 0;
   color: #94a3b8;
   font-size: 13px;
+  line-height: 1.5;
 }
 
 .employee-contact {
@@ -1777,7 +1781,7 @@ onUnmounted(() => {
 }
 
 .employee-kpis strong {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .leave-balance-grid {
@@ -1787,13 +1791,14 @@ onUnmounted(() => {
 }
 
 .leave-balance-grid strong {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .application-board {
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 0;
+  overflow: hidden;
 }
 
 .application-card {
@@ -2154,6 +2159,33 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
+  :global(body) {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .auth-page,
+  :global(.page) {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .login-panel,
+  .left-panel,
+  .chat-panel {
+    width: 100%;
+  }
+
+  .left-panel {
+    max-height: none;
+    overflow: visible;
+  }
+
   .agent-roster,
   .route-strip,
   .mcp-strip {
@@ -2170,6 +2202,25 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .employee-panel {
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .employee-overview {
+    overflow: visible;
+  }
+
+  .employee-profile-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .employee-contact {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .admin-kpis,
   .leave-balance-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2177,7 +2228,35 @@ onUnmounted(() => {
 
   .employee-directory,
   .admin-detail-panel {
-    max-height: 360px;
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-panel,
+  .employee-overview,
+  .employee-directory {
+    padding: 14px;
+  }
+
+  .employee-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-toolbar .secondary-btn {
+    width: 100%;
+  }
+
+  .admin-kpis,
+  .leave-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-avatar-lg {
+    width: 50px;
+    height: 50px;
+    flex-basis: 50px;
   }
 }
 </style>
