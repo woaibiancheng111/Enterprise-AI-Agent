@@ -629,7 +629,7 @@ const loginForm = ref({
 });
 const messages = ref<ChatMessage[]>([
   {
-    id: crypto.randomUUID(),
+    id: createClientId(),
     role: "system",
     text: "欢迎使用企业 AI 助手。请选择服务类型后发送问题。"
   }
@@ -648,6 +648,13 @@ const selectedEmployeeId = ref("");
 const employeeSearch = ref("");
 const employeeDepartmentFilter = ref("all");
 const employeeLoading = ref(false);
+
+function createClientId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 const employeeMessage = ref("");
 const reviewDialog = ref<{
   application: WorkflowApplication | null;
@@ -789,7 +796,7 @@ const quickPrompts = computed(() => quickPromptsMap[selectedMode.value]);
 
 function appendMessage(message: Omit<ChatMessage, "id">): void {
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: createClientId(),
     ...message
   });
 }
@@ -813,7 +820,7 @@ async function onLogin(): Promise<void> {
     chatId.value = result.user.username;
     messages.value = [
       {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         role: "system",
         text: `欢迎回来，${result.user.displayName}。企业 AI 助手已连接你的账号权限。`
       }
@@ -1187,7 +1194,7 @@ async function handleNonStreamRequest(currentInput: string): Promise<void> {
 }
 
 function handleStreamRequest(currentInput: string): void {
-  const assistantMessageId = crypto.randomUUID();
+  const assistantMessageId = createClientId();
   const assistantMessage: ChatMessage = {
     id: assistantMessageId,
     role: "assistant",
