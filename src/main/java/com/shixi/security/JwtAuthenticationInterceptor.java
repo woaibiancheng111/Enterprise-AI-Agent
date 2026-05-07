@@ -16,7 +16,7 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || isPublicPath(request.getServletPath())) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || isPublicPath(request)) {
             return true;
         }
 
@@ -42,7 +42,8 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         throw new UnauthorizedException("请先登录");
     }
 
-    private boolean isPublicPath(String path) {
+    private boolean isPublicPath(HttpServletRequest request) {
+        String path = normalizePath(request);
         return path.equals("/auth/login")
                 || path.equals("/enterprise/health")
                 || path.equals("/mcp/message")
@@ -53,5 +54,17 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
                 || path.equals("/doc.html")
                 || path.equals("/favicon.ico")
                 || path.equals("/actuator/health");
+    }
+
+    private String normalizePath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isBlank() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+        if (path.startsWith("/api/")) {
+            path = path.substring("/api".length());
+        }
+        return path.isBlank() ? "/" : path;
     }
 }
