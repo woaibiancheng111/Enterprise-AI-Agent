@@ -168,7 +168,7 @@
         </div>
       </section>
 
-      <section v-else-if="isEmployeeMode" class="employee-panel">
+      <section v-else-if="isEmployeeMode" :class="['employee-panel', { 'self-service-panel': !canManageWorkflow }]">
         <aside v-if="canManageWorkflow" class="employee-directory">
           <div class="console-section-title">
             <span>EMPLOYEE DIRECTORY</span>
@@ -1627,6 +1627,39 @@ onUnmounted(() => {
   overflow: auto;
 }
 
+.employee-panel.self-service-panel,
+.employee-panel:not(:has(.employee-directory)) {
+  grid-template-columns: 1fr;
+}
+
+.employee-panel.self-service-panel .employee-overview,
+.employee-panel:not(:has(.employee-directory)) .employee-overview {
+  grid-template-columns: minmax(320px, 1.25fr) minmax(280px, 0.75fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+}
+
+.employee-panel.self-service-panel .employee-toolbar,
+.employee-panel.self-service-panel .workflow-message,
+.employee-panel.self-service-panel .application-board,
+.employee-panel:not(:has(.employee-directory)) .employee-toolbar,
+.employee-panel:not(:has(.employee-directory)) .workflow-message,
+.employee-panel:not(:has(.employee-directory)) .application-board {
+  grid-column: 1 / -1;
+}
+
+.employee-panel.self-service-panel .employee-profile-card,
+.employee-panel:not(:has(.employee-directory)) .employee-profile-card {
+  min-height: 178px;
+}
+
+.employee-panel.self-service-panel .admin-kpis,
+.employee-panel.self-service-panel .leave-balance-grid,
+.employee-panel:not(:has(.employee-directory)) .admin-kpis,
+.employee-panel:not(:has(.employee-directory)) .leave-balance-grid {
+  align-self: stretch;
+}
+
 .employee-directory {
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -1799,6 +1832,7 @@ onUnmounted(() => {
   grid-template-rows: auto 1fr;
   min-height: 0;
   overflow: hidden;
+  margin-top: 2px;
 }
 
 .application-card {
