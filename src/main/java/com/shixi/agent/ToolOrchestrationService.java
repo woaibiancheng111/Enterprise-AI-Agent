@@ -27,6 +27,7 @@ public class ToolOrchestrationService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final Pattern EMPLOYEE_ID_PATTERN = Pattern.compile("\\bE\\d{3}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    private static final Pattern CHINESE_DATE_PATTERN = Pattern.compile("(\\d{4})\\s*年\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*(?:日|号)?");
     private static final Pattern DAYS_PATTERN = Pattern.compile("(\\d+)\\s*天");
     private static final Pattern CHINESE_DAYS_PATTERN = Pattern.compile("([一二两三四五六七八九十]+)\\s*天");
     private static final Pattern LEAVE_APPLICATION_PATTERN = Pattern.compile("[申请办理].*假|请假|休假|年假|病假|事假|婚假|产假|请\\s*\\d+\\s*天|休\\s*\\d+\\s*天|请[一二两三四五六七八九十]+天|休[一二两三四五六七八九十]+天");
@@ -57,6 +58,15 @@ public class ToolOrchestrationService {
 
     public Optional<String> tryHandleBusinessOperation(String message) {
         return tryHandle(message, false);
+    }
+
+    public boolean isBusinessOperationIntent(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return LEAVE_APPLICATION_PATTERN.matcher(message).find()
+                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "给我", "我要", "我想");
     }
 
     private Optional<String> tryHandle(String message, boolean includeUtilityFallbacks) {
@@ -484,6 +494,13 @@ public class ToolOrchestrationService {
         Matcher matcher = DATE_PATTERN.matcher(message);
         if (matcher.find()) {
             return Optional.of(matcher.group());
+        }
+        Matcher chineseMatcher = CHINESE_DATE_PATTERN.matcher(message);
+        if (chineseMatcher.find()) {
+            int year = Integer.parseInt(chineseMatcher.group(1));
+            int month = Integer.parseInt(chineseMatcher.group(2));
+            int day = Integer.parseInt(chineseMatcher.group(3));
+            return Optional.of(LocalDate.of(year, month, day).format(DATE_FORMATTER));
         }
         return Optional.empty();
     }

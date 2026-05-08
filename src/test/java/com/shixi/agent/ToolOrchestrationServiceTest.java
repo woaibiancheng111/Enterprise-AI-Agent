@@ -103,6 +103,21 @@ class ToolOrchestrationServiceTest {
     }
 
     @Test
+    void parsesChineseDateBeforeSubmittingLeave() {
+        CurrentUserContext.set(new CurrentUser("U001", "zhangsan", "E001", "张三", "EMPLOYEE"));
+        when(employeeServiceTools.getLeaveBalance("E001"))
+                .thenReturn(new EmployeeServiceTools.LeaveBalanceInfo("E001", 8, 5, 10, 0));
+        when(employeeServiceTools.applyLeave("E001", "ANNUAL", "2026-05-12", "2026-05-14", "由智能工具调用根据用户描述创建"))
+                .thenReturn(new EmployeeServiceTools.LeaveApplicationResult(true, "请假申请已提交", "L0009"));
+
+        Optional<String> answer = service.tryHandleBusinessOperation("我想从2026年5月12日开始请3天年假");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("L0009"));
+        assertTrue(answer.get().contains("2026-05-12 至 2026-05-14"));
+    }
+
+    @Test
     void asksForAmountWhenReimbursementIntentLacksMoney() {
         Optional<String> answer = service.tryHandle("帮员工 E001 申请交通费报销");
 

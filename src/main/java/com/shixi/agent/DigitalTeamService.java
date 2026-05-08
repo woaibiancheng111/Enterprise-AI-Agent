@@ -25,14 +25,17 @@ public class DigitalTeamService {
     private final QueryRewriter queryRewriter;
     private final EnhancedRagService enhancedRagService;
     private final EnterpriseApp enterpriseApp;
+    private final ToolOrchestrationService toolOrchestrationService;
 
     public DigitalTeamService(
             QueryRewriter queryRewriter,
             EnhancedRagService enhancedRagService,
-            EnterpriseApp enterpriseApp) {
+            EnterpriseApp enterpriseApp,
+            ToolOrchestrationService toolOrchestrationService) {
         this.queryRewriter = queryRewriter;
         this.enhancedRagService = enhancedRagService;
         this.enterpriseApp = enterpriseApp;
+        this.toolOrchestrationService = toolOrchestrationService;
     }
 
     public DigitalTeamResponse process(String message, String chatId, int topK) {
@@ -90,6 +93,15 @@ public class DigitalTeamService {
         String lowerMessage = message.toLowerCase(Locale.ROOT);
         boolean hasOperationalKeyword = containsAny(lowerMessage,
                 "申请", "办理", "查询", "状态", "余额", "报销", "请假", "员工", "e001", "e002", "e003", "e004", "e005");
+
+        if (toolOrchestrationService.isBusinessOperationIntent(message)) {
+            return new RouteDecision(
+                    "TOOL_WORKFLOW",
+                    "P2",
+                    "MCP 工具执行",
+                    "识别到真实业务办理意图，优先校验数据并调用业务工具。"
+            );
+        }
 
         if ("HIGH".equals(sentiment.riskLevel())) {
             return new RouteDecision(
