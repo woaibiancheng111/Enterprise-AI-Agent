@@ -13,6 +13,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ToolOrchestrationServiceTest {
@@ -64,6 +66,40 @@ class ToolOrchestrationServiceTest {
         assertTrue(answer.isPresent());
         assertTrue(answer.get().contains("getLeaveBalance"));
         assertTrue(answer.get().contains("员工 `E001`"));
+    }
+
+    @Test
+    void asksForStartDateBeforeSubmittingSelfServiceLeave() {
+        CurrentUserContext.set(new CurrentUser("U001", "zhangsan", "E001", "张三", "EMPLOYEE"));
+
+        Optional<String> answer = service.tryHandleBusinessOperation("给我请3天");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("缺少开始日期"));
+        verify(employeeServiceTools, never()).applyLeave(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    void checksBalanceBeforeSubmittingSelfServiceLeave() {
+        CurrentUserContext.set(new CurrentUser("U001", "zhangsan", "E001", "张三", "EMPLOYEE"));
+        when(employeeServiceTools.getLeaveBalance("E001"))
+                .thenReturn(new EmployeeServiceTools.LeaveBalanceInfo("E001", 8, 5, 10, 0));
+        when(employeeServiceTools.applyLeave("E001", "ANNUAL", "2026-05-12", "2026-05-14", "由智能工具调用根据用户描述创建"))
+                .thenReturn(new EmployeeServiceTools.LeaveApplicationResult(true, "请假申请已提交", "L0008"));
+
+        Optional<String> answer = service.tryHandleBusinessOperation("我想从 2026-05-12 开始请 3 天年假");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("getLeaveBalance"));
+        assertTrue(answer.get().contains("applyLeave"));
+        assertTrue(answer.get().contains("L0008"));
+        assertTrue(answer.get().contains("提交后剩余：5 天"));
     }
 
     @Test

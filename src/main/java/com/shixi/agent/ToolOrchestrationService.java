@@ -28,7 +28,8 @@ public class ToolOrchestrationService {
     private static final Pattern EMPLOYEE_ID_PATTERN = Pattern.compile("\\bE\\d{3}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
     private static final Pattern DAYS_PATTERN = Pattern.compile("(\\d+)\\s*天");
-    private static final Pattern LEAVE_APPLICATION_PATTERN = Pattern.compile("[申请办理].*假|请假|年假|病假|事假|婚假|产假");
+    private static final Pattern CHINESE_DAYS_PATTERN = Pattern.compile("([一二两三四五六七八九十]+)\\s*天");
+    private static final Pattern LEAVE_APPLICATION_PATTERN = Pattern.compile("[申请办理].*假|请假|休假|年假|病假|事假|婚假|产假|请\\s*\\d+\\s*天|休\\s*\\d+\\s*天|请[一二两三四五六七八九十]+天|休[一二两三四五六七八九十]+天");
     private static final Pattern LEAVE_STATUS_PATTERN = Pattern.compile("\\bL\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern REIMBURSEMENT_STATUS_PATTERN = Pattern.compile("\\bR\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern MONEY_PATTERN = Pattern.compile("(?<![A-Za-z])(?:金额)?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:元|块|rmb|RMB)");
@@ -51,6 +52,14 @@ public class ToolOrchestrationService {
     }
 
     public Optional<String> tryHandle(String message) {
+        return tryHandle(message, true);
+    }
+
+    public Optional<String> tryHandleBusinessOperation(String message) {
+        return tryHandle(message, false);
+    }
+
+    private Optional<String> tryHandle(String message, boolean includeUtilityFallbacks) {
         if (message == null || message.isBlank()) {
             return Optional.empty();
         }
@@ -72,7 +81,7 @@ public class ToolOrchestrationService {
         }
 
         if (employeeId.isPresent() && LEAVE_APPLICATION_PATTERN.matcher(message).find()
-                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "我要", "我想")) {
+                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "给我", "我要", "我想")) {
             return Optional.of(applyLeave(message, employeeId.get()));
         }
 
@@ -80,11 +89,11 @@ public class ToolOrchestrationService {
             return Optional.of(applyReimbursement(message, employeeId.get()));
         }
 
-        if (containsAny(normalized, "今天", "现在", "星期", "工作日", "月底", "日期")) {
+        if (includeUtilityFallbacks && containsAny(normalized, "今天", "现在", "星期", "工作日", "月底", "日期")) {
             return Optional.of(formatTimeAnswer(message));
         }
 
-        if (containsAny(normalized, "知识库", "制度", "政策", "流程", "规定", "报销", "请假")) {
+        if (includeUtilityFallbacks && containsAny(normalized, "知识库", "制度", "政策", "流程", "规定", "报销", "请假")) {
             return Optional.of(searchKnowledge(message));
         }
 
@@ -217,9 +226,47 @@ public class ToolOrchestrationService {
 
     private String applyLeave(String message, String employeeId) {
         String leaveType = detectLeaveType(message);
-        String startDate = extractDate(message).orElse(timeTools.getCurrentDate());
-        int days = extractDays(message).orElse(1);
+        Optional<String> startDateValue = extractStartDate(message);
+        Optional<Integer> daysValue = extractDays(message);
+
+        if (startDateValue.isEmpty()) {
+            return """
+                    已识别到请假申请意图，但缺少开始日期，暂不提交申请。
+
+                    请补充开始日期，例如：
+                    - `我想从 2026-05-12 开始请 3 天年假`
+                    - `我明天请 1 天年假`
+                    """;
+        }
+
+        if (daysValue.isEmpty()) {
+            return """
+                    已识别到请假申请意图，但缺少请假天数，暂不提交申请。
+
+                    请补充天数，例如：`我想从 2026-05-12 开始请 3 天年假`。
+                    """;
+        }
+
+        String startDate = startDateValue.get();
+        int days = daysValue.get();
         String endDate = LocalDate.parse(startDate, DATE_FORMATTER).plusDays(days - 1L).format(DATE_FORMATTER);
+
+        EmployeeServiceTools.LeaveBalanceInfo balance = employeeServiceTools.getLeaveBalance(employeeId);
+        if (balance == null) {
+            return "已调用工具：`getLeaveBalance`\n\n未找到员工 `" + employeeId + "` 的假期余额，暂不提交请假申请。";
+        }
+
+        int availableDays = availableLeaveDays(balance, leaveType);
+        if (availableDays < days) {
+            return """
+                    已调用工具：`getLeaveBalance`
+
+                    请假申请未提交：%s余额不足。
+                    - 员工：%s
+                    - 本次申请：%d 天
+                    - 当前可用：%d 天
+                    """.formatted(leaveTypeLabel(leaveType), employeeId, days, availableDays);
+        }
 
         EmployeeServiceTools.LeaveApplicationResult result = employeeServiceTools.applyLeave(
                 employeeId,
@@ -241,15 +288,25 @@ public class ToolOrchestrationService {
         }
 
         return """
-                已调用工具：`applyLeave`
+                已调用工具：`getLeaveBalance`、`applyLeave`
 
-                请假申请已提交成功。
+                已先校验%s余额，余额充足，请假申请已提交成功。
                 - 申请编号：%s
                 - 员工：%s
                 - 假期类型：%s
                 - 日期：%s 至 %s，共 %d 天
+                - 提交后剩余：%d 天
                 - 状态：待审批
-                """.formatted(result.getApplicationId(), employeeId, leaveType, startDate, endDate, days);
+                """.formatted(
+                leaveTypeLabel(leaveType),
+                result.getApplicationId(),
+                employeeId,
+                leaveTypeLabel(leaveType),
+                startDate,
+                endDate,
+                days,
+                availableDays - days
+        );
     }
 
     private String applyReimbursement(String message, String employeeId) {
@@ -431,10 +488,36 @@ public class ToolOrchestrationService {
         return Optional.empty();
     }
 
+    private Optional<String> extractStartDate(String message) {
+        Optional<String> exactDate = extractDate(message);
+        if (exactDate.isPresent()) {
+            return exactDate;
+        }
+        if (!message.contains("今天") && !message.contains("明天") && !message.contains("后天")) {
+            return Optional.empty();
+        }
+        String currentDate = timeTools.getCurrentDate();
+        LocalDate today = LocalDate.parse(currentDate, DATE_FORMATTER);
+        if (message.contains("后天")) {
+            return Optional.of(today.plusDays(2).format(DATE_FORMATTER));
+        }
+        if (message.contains("明天")) {
+            return Optional.of(today.plusDays(1).format(DATE_FORMATTER));
+        }
+        if (message.contains("今天")) {
+            return Optional.of(today.format(DATE_FORMATTER));
+        }
+        return Optional.empty();
+    }
+
     private Optional<Integer> extractDays(String message) {
         Matcher matcher = DAYS_PATTERN.matcher(message);
         if (matcher.find()) {
             return Optional.of(Integer.parseInt(matcher.group(1)));
+        }
+        Matcher chineseMatcher = CHINESE_DAYS_PATTERN.matcher(message);
+        if (chineseMatcher.find()) {
+            return parseChineseNumber(chineseMatcher.group(1));
         }
         return Optional.empty();
     }
@@ -456,6 +539,42 @@ public class ToolOrchestrationService {
         if (message.contains("婚假")) return "MARRIAGE";
         if (message.contains("产假")) return "MATERNITY";
         return "ANNUAL";
+    }
+
+    private int availableLeaveDays(EmployeeServiceTools.LeaveBalanceInfo balance, String leaveType) {
+        return switch (leaveType) {
+            case "ANNUAL" -> balance.getAnnualLeave();
+            case "SICK" -> balance.getSickLeave();
+            case "MARRIAGE" -> balance.getMarriageLeave();
+            case "MATERNITY" -> balance.getMaternityLeave();
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
+    private String leaveTypeLabel(String leaveType) {
+        return switch (leaveType) {
+            case "SICK" -> "病假";
+            case "PERSONAL" -> "事假";
+            case "MARRIAGE" -> "婚假";
+            case "MATERNITY" -> "产假";
+            default -> "年假";
+        };
+    }
+
+    private Optional<Integer> parseChineseNumber(String text) {
+        return switch (text) {
+            case "一" -> Optional.of(1);
+            case "二", "两" -> Optional.of(2);
+            case "三" -> Optional.of(3);
+            case "四" -> Optional.of(4);
+            case "五" -> Optional.of(5);
+            case "六" -> Optional.of(6);
+            case "七" -> Optional.of(7);
+            case "八" -> Optional.of(8);
+            case "九" -> Optional.of(9);
+            case "十" -> Optional.of(10);
+            default -> Optional.empty();
+        };
     }
 
     private String detectReimbursementType(String message) {

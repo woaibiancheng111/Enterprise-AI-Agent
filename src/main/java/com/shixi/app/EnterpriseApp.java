@@ -24,6 +24,7 @@ import reactor.core.publisher.Flux;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
@@ -160,6 +161,11 @@ public class EnterpriseApp {
     }
 
     public String doChat(String message, String chatId) {
+        Optional<String> businessOperation = tryHandleBusinessOperation(message);
+        if (businessOperation.isPresent()) {
+            return businessOperation.get();
+        }
+
         ChatResponse response = chatClient
                 .prompt()
                 .user(message)
@@ -207,6 +213,11 @@ public class EnterpriseApp {
      * @param chatId
      */
     public String doChatWithKnowledgeBase(String message, String chatId) {
+        Optional<String> businessOperation = tryHandleBusinessOperation(message);
+        if (businessOperation.isPresent()) {
+            return businessOperation.get();
+        }
+
         ChatResponse chatResponse = chatClient
                 .prompt()
                 .user(message)
@@ -229,6 +240,11 @@ public class EnterpriseApp {
      * @return 内容块的Flux流
      */
     public Flux<String> streamChatWithKnowledgeBaseWithCitations(String message, String chatId, int topK) {
+        Optional<String> businessOperation = tryHandleBusinessOperation(message);
+        if (businessOperation.isPresent()) {
+            return Flux.just(businessOperation.get());
+        }
+
         // 1. 执行 RAG 检索获取引用
         EnhancedRagService.RagResult ragResult = enhancedRagService.search(message, topK);
 
@@ -297,6 +313,11 @@ public class EnterpriseApp {
      * @return 内容块的Flux流
      */
     public Flux<String> streamChat(String message, String chatId) {
+        Optional<String> businessOperation = tryHandleBusinessOperation(message);
+        if (businessOperation.isPresent()) {
+            return Flux.just(businessOperation.get());
+        }
+
         return chatClient
                 .prompt()
                 .user(message)
@@ -313,6 +334,11 @@ public class EnterpriseApp {
      * @return 内容块的Flux流
      */
     public Flux<String> streamChatWithKnowledgeBase(String message, String chatId) {
+        Optional<String> businessOperation = tryHandleBusinessOperation(message);
+        if (businessOperation.isPresent()) {
+            return Flux.just(businessOperation.get());
+        }
+
         return chatClient
                 .prompt()
                 .user(message)
@@ -374,5 +400,9 @@ public class EnterpriseApp {
      */
     public Flux<String> streamChatWithTools(String message, String chatId) {
         return Flux.just(doChatWithTools(message, chatId));
+    }
+
+    private Optional<String> tryHandleBusinessOperation(String message) {
+        return toolOrchestrationService.tryHandleBusinessOperation(message);
     }
 }
