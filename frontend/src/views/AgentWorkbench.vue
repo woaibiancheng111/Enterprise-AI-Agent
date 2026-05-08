@@ -523,8 +523,18 @@
                 <div>
                   <span>{{ message.ticket.ticketId }}</span>
                   <strong>{{ message.ticket.title }}</strong>
+                  <p>{{ message.ticket.missingFields.length > 0 ? "工单草稿已生成，补齐信息后即可转交服务台。" : "信息已基本齐全，可转交服务台处理。" }}</p>
                 </div>
                 <em>{{ message.ticket.priority }}</em>
+              </div>
+              <div v-if="message.ticket.missingFields.length > 0" class="ticket-next-input">
+                <div>
+                  <span>现在需要你补充</span>
+                  <strong>{{ message.ticket.missingFields.join("、") }}</strong>
+                </div>
+                <button type="button" class="secondary-btn" @click="fillTicketFollowup(message.ticket)">
+                  继续补充
+                </button>
               </div>
               <div class="ticket-meta-grid">
                 <article>
@@ -546,17 +556,16 @@
               </div>
               <p class="ticket-description">{{ message.ticket.description }}</p>
               <div class="ticket-columns">
+                <div v-if="message.ticket.missingFields.length > 0" class="ticket-missing-panel">
+                  <span>缺失字段</span>
+                  <ul>
+                    <li v-for="field in message.ticket.missingFields" :key="field">{{ field }}</li>
+                  </ul>
+                </div>
                 <div>
                   <span>需要字段</span>
                   <ul>
                     <li v-for="field in message.ticket.requiredFields" :key="field">{{ field }}</li>
-                  </ul>
-                </div>
-                <div>
-                  <span>缺失字段</span>
-                  <ul>
-                    <li v-for="field in message.ticket.missingFields" :key="field">{{ field }}</li>
-                    <li v-if="message.ticket.missingFields.length === 0">已具备基础信息</li>
                   </ul>
                 </div>
               </div>
@@ -930,6 +939,12 @@ function appendMessage(message: Omit<ChatMessage, "id">): void {
 
 function onUsePrompt(prompt: string): void {
   inputMessage.value = prompt;
+  textareaRef.value?.focus();
+}
+
+function fillTicketFollowup(ticket: TicketResponse): void {
+  const fields = ticket.missingFields.length > 0 ? ticket.missingFields : ticket.requiredFields;
+  inputMessage.value = `补充工单 ${ticket.ticketId}：${fields.map((field) => `${field}：`).join("；")}`;
   textareaRef.value?.focus();
 }
 

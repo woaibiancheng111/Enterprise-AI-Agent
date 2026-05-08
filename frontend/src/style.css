@@ -728,6 +728,13 @@ textarea:focus {
   font-size: 17px;
 }
 
+.ticket-card-header p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .ticket-card-header em {
   border-radius: 999px;
   padding: 6px 10px;
@@ -737,6 +744,37 @@ textarea:focus {
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
+}
+
+.ticket-next-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 13px;
+  padding: 12px;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.ticket-next-input span {
+  display: block;
+  color: #93c5fd;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.ticket-next-input strong {
+  display: block;
+  margin-top: 5px;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ticket-next-input button {
+  flex: 0 0 auto;
 }
 
 .ticket-meta-grid {
@@ -752,6 +790,11 @@ textarea:focus {
   border-radius: 12px;
   padding: 11px;
   background: rgba(15, 23, 42, 0.4);
+}
+
+.ticket-columns > .ticket-missing-panel {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .ticket-meta-grid strong {
@@ -972,6 +1015,11 @@ button:not(:disabled):active {
   .ticket-meta-grid,
   .ticket-columns {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-next-input {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
