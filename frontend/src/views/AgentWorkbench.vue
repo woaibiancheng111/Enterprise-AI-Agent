@@ -1688,17 +1688,17 @@ onUnmounted(() => {
 }
 
 .demo-users button {
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 999px;
   padding: 7px 10px;
-  color: #475569;
-  background: #ffffff;
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.52);
   font-size: 12px;
 }
 
 .demo-users button:hover {
   border-color: rgba(96, 165, 250, 0.45);
-  color: #1d4ed8;
+  color: #f8fafc;
 }
 
 .user-card {
@@ -1708,7 +1708,7 @@ onUnmounted(() => {
 
 .primary-service-card h2,
 .advanced-service-card summary {
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .advanced-service-card {
@@ -1752,7 +1752,7 @@ onUnmounted(() => {
 
 .user-profile strong {
   display: block;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 14px;
 }
 
@@ -1770,8 +1770,8 @@ onUnmounted(() => {
   display: grid;
   gap: 12px;
   padding: 14px 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.28);
 }
 
 .agent-roster {
@@ -1785,10 +1785,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  border: 1px solid #dbe3ef;
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 12px;
   padding: 10px;
-  background: #ffffff;
+  background: rgba(30, 41, 59, 0.42);
   opacity: 0.72;
 }
 
@@ -1820,7 +1820,7 @@ onUnmounted(() => {
 .agent-tile strong {
   display: block;
   overflow: hidden;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1854,8 +1854,8 @@ onUnmounted(() => {
 .mcp-strip div {
   border-radius: 10px;
   padding: 9px 10px;
-  background: #ffffff;
-  border: 1px solid #dbe3ef;
+  background: rgba(15, 23, 42, 0.58);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .route-strip span,
@@ -1872,7 +1872,7 @@ onUnmounted(() => {
   display: block;
   margin-top: 4px;
   overflow: hidden;
-  color: #0f172a;
+  color: #e2e8f0;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1900,10 +1900,10 @@ onUnmounted(() => {
 
 .admin-kpis article,
 .leave-balance-grid article {
-  border: 1px solid #dbe3ef;
-  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
   padding: 14px;
-  background: #f8fafc;
+  background: rgba(15, 23, 42, 0.52);
 }
 
 .admin-kpis span,
@@ -1918,7 +1918,7 @@ onUnmounted(() => {
 .leave-balance-grid strong {
   display: block;
   margin-top: 8px;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 24px;
 }
 
@@ -1999,7 +1999,7 @@ onUnmounted(() => {
   min-height: 0;
   padding: 16px 20px 20px;
   overflow: auto;
-  background: #f8fafc;
+  background: transparent;
 }
 
 .employee-panel.self-service-panel {
@@ -2094,9 +2094,9 @@ onUnmounted(() => {
   gap: 14px;
   padding: 18px;
   overflow: auto;
-  border-color: #dbe3ef;
-  background: #ffffff;
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.46);
+  box-shadow: none;
 }
 
 .employee-toolbar {
@@ -2107,7 +2107,7 @@ onUnmounted(() => {
 }
 
 .employee-toolbar span {
-  color: #2563eb;
+  color: #60a5fa;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -2116,7 +2116,7 @@ onUnmounted(() => {
 .employee-toolbar h3,
 .employee-profile-card h3 {
   margin: 3px 0 0;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .employee-dashboard {
@@ -2130,10 +2130,12 @@ onUnmounted(() => {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: center;
-  border: 1px solid #dbe3ef;
-  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
   padding: 16px;
-  background: #f8fafc;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(8, 47, 73, 0.12)),
+    rgba(15, 23, 42, 0.5);
 }
 
 .employee-profile-label,
@@ -2155,7 +2157,7 @@ onUnmounted(() => {
 
 .employee-profile-card p {
   margin: 5px 0 0;
-  color: #475569;
+  color: #94a3b8;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -2170,30 +2172,30 @@ onUnmounted(() => {
 .employee-contact span {
   border-radius: 999px;
   padding: 5px 9px;
-  color: #334155;
-  background: #e2e8f0;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.54);
   font-size: 11px;
 }
 
 .employee-summary-card {
   display: grid;
   align-content: center;
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 14px;
   padding: 16px;
-  background: #eff6ff;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .employee-summary-card strong {
   margin-top: 6px;
-  color: #1d4ed8;
+  color: #93c5fd;
   font-size: 32px;
   line-height: 1;
 }
 
 .employee-summary-card p {
   margin: 8px 0 0;
-  color: #475569;
+  color: #94a3b8;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -2210,17 +2212,17 @@ onUnmounted(() => {
   gap: 12px;
   align-items: center;
   min-height: 78px;
-  border: 1px solid #dbe3ef;
-  border-radius: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 14px;
   padding: 14px;
   text-align: left;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  background: rgba(30, 41, 59, 0.34);
+  box-shadow: none;
 }
 
 .oa-action-panel button:hover {
-  border-color: #60a5fa;
-  background: #eff6ff;
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(37, 99, 235, 0.14);
 }
 
 .oa-action-panel button > span {
@@ -2237,13 +2239,13 @@ onUnmounted(() => {
 
 .oa-action-panel strong {
   display: block;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 14px;
 }
 
 .oa-action-panel p {
   margin: 5px 0 0;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 12px;
   line-height: 1.45;
 }
@@ -2255,9 +2257,9 @@ onUnmounted(() => {
 }
 
 .leave-balance-grid article {
-  border-color: #dbe3ef;
-  border-radius: 12px;
-  background: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.52);
 }
 
 .leave-balance-grid span {
@@ -2266,7 +2268,7 @@ onUnmounted(() => {
 
 .leave-balance-grid strong {
   margin-top: 6px;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 26px;
 }
 
@@ -2286,24 +2288,24 @@ onUnmounted(() => {
 .application-card {
   display: grid;
   gap: 8px;
-  border: 1px solid #dbe3ef;
-  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
   padding: 13px;
-  background: #ffffff;
+  background: rgba(30, 41, 59, 0.38);
 }
 
 .employee-overview .console-section-title strong,
 .employee-overview .application-card strong {
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .employee-overview .console-section-title span {
-  color: #2563eb;
+  color: #60a5fa;
 }
 
 .employee-overview .application-card p,
 .employee-overview .application-card footer {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .application-card .status-pill {
