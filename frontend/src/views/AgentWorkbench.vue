@@ -517,7 +517,58 @@
           :class="['message', message.role, { streaming: message.streaming }]"
         >
           <header>{{ roleLabelMap[message.role] }}</header>
-          <pre v-if="message.isJson">{{ message.text }}</pre>
+          <template v-if="message.ticket">
+            <section class="ticket-card">
+              <div class="ticket-card-header">
+                <div>
+                  <span>{{ message.ticket.ticketId }}</span>
+                  <strong>{{ message.ticket.title }}</strong>
+                </div>
+                <em>{{ message.ticket.priority }}</em>
+              </div>
+              <div class="ticket-meta-grid">
+                <article>
+                  <span>状态</span>
+                  <strong>{{ ticketStatusLabel(message.ticket.status) }}</strong>
+                </article>
+                <article>
+                  <span>受理组</span>
+                  <strong>{{ message.ticket.assigneeGroup }}</strong>
+                </article>
+                <article>
+                  <span>SLA</span>
+                  <strong>{{ message.ticket.sla }}</strong>
+                </article>
+                <article>
+                  <span>申请人</span>
+                  <strong>{{ message.ticket.employeeName }} · {{ message.ticket.employeeId || "未绑定" }}</strong>
+                </article>
+              </div>
+              <p class="ticket-description">{{ message.ticket.description }}</p>
+              <div class="ticket-columns">
+                <div>
+                  <span>需要字段</span>
+                  <ul>
+                    <li v-for="field in message.ticket.requiredFields" :key="field">{{ field }}</li>
+                  </ul>
+                </div>
+                <div>
+                  <span>缺失字段</span>
+                  <ul>
+                    <li v-for="field in message.ticket.missingFields" :key="field">{{ field }}</li>
+                    <li v-if="message.ticket.missingFields.length === 0">已具备基础信息</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="ticket-actions">
+                <span>下一步</span>
+                <ol>
+                  <li v-for="item in message.ticket.actionItems" :key="item">{{ item }}</li>
+                </ol>
+              </div>
+            </section>
+          </template>
+          <pre v-else-if="message.isJson">{{ message.text }}</pre>
           <template v-else-if="message.role === 'assistant'">
             <div
               class="markdown-body"
@@ -633,6 +684,7 @@ import type {
   McpStatus,
   McpToolCard,
   ReadyCapability,
+  TicketResponse,
   UserProfile,
   WorkflowApplication
 } from "../types/enterprise";
@@ -1111,6 +1163,12 @@ function statusLabel(status: string): string {
   return status;
 }
 
+function ticketStatusLabel(status: string): string {
+  if (status === "NEED_MORE_INFO") return "待补充信息";
+  if (status === "READY_TO_SUBMIT") return "可提交服务台";
+  return status;
+}
+
 function applicationSummary(application: WorkflowApplication): string {
   if (application.type === "leave") {
     return `${application.applicationType} · ${application.startDate} 至 ${application.endDate} · ${application.days ?? 0} 天`;
@@ -1265,8 +1323,11 @@ async function handleNonStreamRequest(currentInput: string): Promise<void> {
     );
     appendMessage({
       role: "assistant",
-      text: responseText,
-      isJson: selectedMode.value === "ticket"
+      text: typeof responseText === "string" ? responseText : responseText.description,
+      ticket: selectedMode.value === "ticket" && typeof responseText !== "string"
+        ? responseText as TicketResponse
+        : undefined,
+      isJson: false
     });
     await nextTick();
     scrollToBottom();

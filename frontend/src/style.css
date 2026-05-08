@@ -697,6 +697,99 @@ textarea:focus {
   background: rgba(30, 41, 59, 0.6);
 }
 
+.ticket-card {
+  display: grid;
+  gap: 12px;
+  min-width: min(680px, 72vw);
+}
+
+.ticket-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ticket-card-header span,
+.ticket-meta-grid span,
+.ticket-columns span,
+.ticket-actions span {
+  display: block;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ticket-card-header strong {
+  display: block;
+  margin-top: 4px;
+  color: #f8fafc;
+  font-size: 17px;
+}
+
+.ticket-card-header em {
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.ticket-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ticket-meta-grid article,
+.ticket-columns > div,
+.ticket-actions {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  padding: 11px;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.ticket-meta-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ticket-description {
+  margin: 0;
+  border-radius: 12px;
+  padding: 12px;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.34);
+  line-height: 1.65;
+}
+
+.ticket-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ticket-columns ul,
+.ticket-actions ol {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ticket-actions li + li {
+  margin-top: 3px;
+}
+
 .message.system {
   align-self: center;
   background: rgba(139, 92, 246, 0.1);
@@ -870,6 +963,15 @@ button:not(:disabled):active {
 
   .message-list {
     max-height: 50vh;
+  }
+
+  .ticket-card {
+    min-width: 0;
+  }
+
+  .ticket-meta-grid,
+  .ticket-columns {
+    grid-template-columns: 1fr;
   }
 }
 

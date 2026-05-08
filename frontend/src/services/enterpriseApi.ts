@@ -72,7 +72,7 @@ export async function requestEnterprise(
   capability: ReadyCapability,
   message: string,
   chatId: string
-): Promise<string> {
+): Promise<string | TicketResponse> {
   const endpoint = endpointMap[capability];
   const { data } = await http.post<string | TicketResponse>(endpoint, { message, chatId });
   if (typeof data === "string") {
@@ -82,7 +82,7 @@ export async function requestEnterprise(
     const mcpData = data as unknown as McpChatResponse;
     return `${mcpData.content}\n\n---\n${mcpData.trace}`;
   }
-  return JSON.stringify(data, null, 2);
+  return data;
 }
 
 export async function requestDigitalTeam(

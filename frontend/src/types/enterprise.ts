@@ -10,10 +10,21 @@ export interface CapabilityDefinition {
 }
 
 export interface TicketResponse {
+  ticketId: string;
   employeeName: string;
+  employeeId: string | null;
   department: string;
   requirementType: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  assigneeGroup: string;
+  sla: string;
+  requiredFields: string[];
+  missingFields: string[];
   actionItems: string[];
+  createdAt: string;
 }
 
 export interface SentimentSignal {
@@ -99,6 +110,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   text: string;
   isJson?: boolean;
+  ticket?: TicketResponse;
   streaming?: boolean;
   teamResponse?: DigitalTeamResponse;
 }

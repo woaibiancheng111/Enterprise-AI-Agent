@@ -22,6 +22,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -182,22 +184,182 @@ public class EnterpriseApp {
         return content;
     }
 
-    record EmployeeTicket(String employeeName, String department, String requirementType, List<String> actionItems) {
+    public record EmployeeTicket(
+            String ticketId,
+            String employeeName,
+            String employeeId,
+            String department,
+            String requirementType,
+            String title,
+            String description,
+            String priority,
+            String status,
+            String assigneeGroup,
+            String sla,
+            List<String> requiredFields,
+            List<String> missingFields,
+            List<String> actionItems,
+            String createdAt) {
+    }
 
+    record RawEmployeeTicket(String requirementType, String title, String description,
+                             String priority, List<String> requiredFields,
+                             List<String> missingFields, List<String> actionItems) {
     }
 
     public EmployeeTicket doChatWithReport(String message, String chatId) {
-        EmployeeTicket ticket = chatClient
-                .prompt()
-                .system(SYSTEM_PROMPT)
-                .user(message)
-                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .call()
-                .entity(EmployeeTicket.class);
+        RawEmployeeTicket rawTicket;
+        try {
+            rawTicket = chatClient
+                    .prompt()
+                    .system("""
+                            你是企业服务台工单整理助手。
+                            请把用户诉求整理成结构化工单草稿，只输出字段值，不要执行真实业务。
+                            requirementType 应简短，例如：请假处理、报销异常、办公用品申领、账号权限、行政咨询。
+                            priority 只能是 P0、P1、P2、P3；普通办公用品和常规咨询为 P3，请假/报销为 P2，紧急投诉为 P1/P0。
+                            requiredFields 是正式提交该类工单需要收集的字段；missingFields 是当前用户描述仍缺少的字段。
+                            actionItems 是服务台接下来应该做的动作，3 到 5 条。
+                            """)
+                    .user(message)
+                    .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                    .call()
+                    .entity(RawEmployeeTicket.class);
+        } catch (Exception e) {
+            rawTicket = fallbackTicket(message);
+        }
+
+        EmployeeTicket ticket = enrichTicket(rawTicket, message);
 
         log.info("Ticket generated: {}", ticket);
         return ticket;
+    }
+
+    private EmployeeTicket enrichTicket(RawEmployeeTicket rawTicket, String message) {
+        com.shixi.security.CurrentUser user = com.shixi.security.CurrentUserContext.require();
+        String requirementType = defaultText(rawTicket.requirementType(), detectRequirementType(message));
+        String priority = normalizePriority(rawTicket.priority(), requirementType, message);
+        return new EmployeeTicket(
+                generateTicketId(requirementType),
+                user.displayName(),
+                user.employeeId(),
+                "待服务台确认",
+                requirementType,
+                defaultText(rawTicket.title(), requirementType + "工单"),
+                defaultText(rawTicket.description(), message),
+                priority,
+                rawTicket.missingFields() == null || rawTicket.missingFields().isEmpty() ? "READY_TO_SUBMIT" : "NEED_MORE_INFO",
+                detectAssigneeGroup(requirementType),
+                detectSla(priority),
+                defaultList(rawTicket.requiredFields(), defaultRequiredFields(requirementType)),
+                defaultList(rawTicket.missingFields(), List.of()),
+                defaultList(rawTicket.actionItems(), defaultActionItems(requirementType)),
+                LocalDateTime.now().toString()
+        );
+    }
+
+    private RawEmployeeTicket fallbackTicket(String message) {
+        String requirementType = detectRequirementType(message);
+        return new RawEmployeeTicket(
+                requirementType,
+                requirementType + "工单",
+                message,
+                "P3",
+                defaultRequiredFields(requirementType),
+                defaultRequiredFields(requirementType),
+                defaultActionItems(requirementType)
+        );
+    }
+
+    private String generateTicketId(String requirementType) {
+        String prefix = switch (requirementType) {
+            case "请假处理" -> "TK-LEAVE";
+            case "报销异常" -> "TK-REIM";
+            case "办公用品申领" -> "TK-OFFICE";
+            case "账号权限" -> "TK-ACCESS";
+            default -> "TK-SVC";
+        };
+        return prefix + "-" + LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+                + "-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
+    private String detectRequirementType(String message) {
+        if (containsAny(message, "请假", "年假", "病假", "事假", "休假")) return "请假处理";
+        if (containsAny(message, "报销", "发票", "差旅", "打车", "交通费")) return "报销异常";
+        if (containsAny(message, "办公用品", "电脑", "鼠标", "键盘", "工牌", "设备")) return "办公用品申领";
+        if (containsAny(message, "账号", "权限", "登录", "密码")) return "账号权限";
+        return "行政咨询";
+    }
+
+    private String detectAssigneeGroup(String requirementType) {
+        return switch (requirementType) {
+            case "请假处理" -> "HR 服务台";
+            case "报销异常" -> "财务服务台";
+            case "办公用品申领" -> "行政服务台";
+            case "账号权限" -> "IT 服务台";
+            default -> "综合服务台";
+        };
+    }
+
+    private String normalizePriority(String priority, String requirementType, String message) {
+        if (List.of("P0", "P1", "P2", "P3").contains(priority)) {
+            return priority;
+        }
+        if (containsAny(message, "紧急", "马上", "今天必须", "严重")) {
+            return "P1";
+        }
+        if ("请假处理".equals(requirementType) || "报销异常".equals(requirementType)) {
+            return "P2";
+        }
+        return "P3";
+    }
+
+    private String detectSla(String priority) {
+        return switch (priority) {
+            case "P0" -> "2 小时内响应";
+            case "P1" -> "4 小时内响应";
+            case "P2" -> "1 个工作日内响应";
+            default -> "2 个工作日内响应";
+        };
+    }
+
+    private List<String> defaultRequiredFields(String requirementType) {
+        return switch (requirementType) {
+            case "请假处理" -> List.of("假期类型", "开始日期", "结束日期或天数", "请假原因");
+            case "报销异常" -> List.of("报销类型", "金额", "费用日期", "发票或凭证", "说明");
+            case "办公用品申领" -> List.of("物品名称", "数量", "用途", "期望领取日期");
+            case "账号权限" -> List.of("系统名称", "权限范围", "业务原因", "期望开通时间");
+            default -> List.of("诉求说明", "期望处理时间");
+        };
+    }
+
+    private List<String> defaultActionItems(String requirementType) {
+        return switch (requirementType) {
+            case "办公用品申领" -> List.of("确认物品名称、数量和用途", "检查行政库存", "提交行政服务台审批", "通知员工领取时间");
+            case "请假处理" -> List.of("确认假期类型、日期和天数", "校验假期余额", "生成请假申请", "通知直属负责人审批");
+            case "报销异常" -> List.of("确认报销类型和金额", "核对发票或凭证", "提交财务服务台", "同步处理进度");
+            default -> List.of("补齐必要字段", "分派到对应服务台", "跟踪处理状态");
+        };
+    }
+
+    private boolean containsAny(String text, String... keywords) {
+        if (text == null) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String defaultText(String text, String defaultValue) {
+        return text == null || text.isBlank() ? defaultValue : text;
+    }
+
+    private List<String> defaultList(List<String> list, List<String> defaultValue) {
+        return list == null || list.isEmpty() ? defaultValue : list;
     }
 
 
