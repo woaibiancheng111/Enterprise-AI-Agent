@@ -10,6 +10,8 @@ import type {
   ReviewRequest,
   ReviewResponse,
   ReadyCapability,
+  SubmitLeaveRequest,
+  SubmitLeaveResponse,
   TicketResponse,
   UserProfile,
   WorkflowApplicationListResponse
@@ -230,6 +232,13 @@ export async function listWorkflowApplications(
   const { data } = await http.get<WorkflowApplicationListResponse>("/workflow/applications", {
     params: { type, status }
   });
+  return data;
+}
+
+export async function submitLeaveApplication(
+  request: SubmitLeaveRequest
+): Promise<SubmitLeaveResponse> {
+  const { data } = await http.post<SubmitLeaveResponse>("/workflow/leave", request);
   return data;
 }
 

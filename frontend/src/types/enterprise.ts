@@ -163,10 +163,25 @@ export interface ReviewRequest {
   comment: string;
 }
 
+export interface SubmitLeaveRequest {
+  employeeId: string;
+  leaveType: "ANNUAL" | "SICK" | "PERSONAL" | "MARRIAGE" | "MATERNITY";
+  startDate: string;
+  endDate: string;
+  reason: string;
+  autoApprove: boolean;
+}
+
 export interface ReviewResponse {
   success: boolean;
   message: string;
   application: WorkflowApplication;
+}
+
+export interface SubmitLeaveResponse {
+  success: boolean;
+  message: string;
+  application: WorkflowApplication | null;
 }
 
 export interface EmployeeCard {

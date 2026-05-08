@@ -531,7 +531,7 @@
                   <span>现在需要你补充</span>
                   <strong>{{ message.ticket.missingFields.join("、") }}</strong>
                 </div>
-                <button type="button" class="secondary-btn" @click="fillTicketFollowup(message.ticket)">
+                <button type="button" class="secondary-btn" @click="handleTicketFollowup(message.ticket)">
                   继续补充
                 </button>
               </div>
@@ -657,6 +657,68 @@
         </footer>
       </section>
     </div>
+
+    <div v-if="leaveDialog.open" class="modal-backdrop">
+      <form class="leave-dialog" @submit.prevent="submitLeaveForm">
+        <header>
+          <div>
+            <span>请假申请</span>
+            <strong>{{ leaveDialog.employeeName || "员工" }}</strong>
+          </div>
+          <button type="button" class="icon-close-btn" @click="closeLeaveDialog">×</button>
+        </header>
+
+        <div class="leave-form-grid">
+          <label class="field">
+            <span>员工工号</span>
+            <input v-model="leaveForm.employeeId" disabled />
+          </label>
+          <label class="field">
+            <span>员工姓名</span>
+            <input v-model="leaveDialog.employeeName" disabled />
+          </label>
+          <label class="field">
+            <span>请假类型</span>
+            <select v-model="leaveForm.leaveType">
+              <option value="ANNUAL">年假</option>
+              <option value="SICK">病假</option>
+              <option value="PERSONAL">事假</option>
+              <option value="MARRIAGE">婚假</option>
+              <option value="MATERNITY">产假</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>开始日期</span>
+            <input v-model="leaveForm.startDate" type="date" />
+          </label>
+          <label class="field">
+            <span>结束日期</span>
+            <input v-model="leaveForm.endDate" type="date" />
+          </label>
+          <label class="field leave-reason-field">
+            <span>请假原因</span>
+            <textarea v-model.trim="leaveForm.reason" placeholder="例如：个人事务、身体不适、家庭安排"></textarea>
+          </label>
+          <label v-if="canManageWorkflow" class="auto-approve-field">
+            <input v-model="leaveForm.autoApprove" type="checkbox" />
+            <span>提交后自动审批通过</span>
+          </label>
+        </div>
+
+        <p v-if="leaveDialog.message" :class="['workflow-message', leaveDialog.messageType]">
+          {{ leaveDialog.message }}
+        </p>
+
+        <footer>
+          <button type="button" class="secondary-btn" :disabled="leaveDialog.submitting" @click="closeLeaveDialog">
+            取消
+          </button>
+          <button type="submit" class="primary-btn" :disabled="leaveDialog.submitting || !canSubmitLeaveForm">
+            {{ leaveDialog.submitting ? "提交中..." : "提交审批" }}
+          </button>
+        </footer>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -681,6 +743,7 @@ import {
   listWorkflowApplications,
   reviewLeaveApplication,
   reviewReimbursementApplication,
+  submitLeaveApplication,
   createStreamController
 } from "../services/enterpriseApi";
 import KnowledgeBaseUpload from "../components/KnowledgeBaseUpload.vue";
@@ -759,6 +822,21 @@ const reviewDialog = ref<{
 });
 const reviewComment = ref("");
 const reviewSubmitting = ref(false);
+const leaveDialog = ref({
+  open: false,
+  employeeName: "",
+  submitting: false,
+  message: "",
+  messageType: "idle" as "success" | "error" | "idle"
+});
+const leaveForm = ref({
+  employeeId: "",
+  leaveType: "ANNUAL" as "ANNUAL" | "SICK" | "PERSONAL" | "MARRIAGE" | "MATERNITY",
+  startDate: "",
+  endDate: "",
+  reason: "",
+  autoApprove: false
+});
 
 const messageListRef = ref<HTMLElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
@@ -941,6 +1019,17 @@ const quickPrompts = computed(() =>
   (canManageWorkflow.value ? managerQuickPromptsMap : employeeQuickPromptsMap)[selectedMode.value]
 );
 
+const canSubmitLeaveForm = computed(() =>
+  Boolean(
+    leaveForm.value.employeeId
+      && leaveForm.value.leaveType
+      && leaveForm.value.startDate
+      && leaveForm.value.endDate
+      && leaveForm.value.reason
+      && leaveForm.value.startDate <= leaveForm.value.endDate
+  )
+);
+
 function appendMessage(message: Omit<ChatMessage, "id">): void {
   messages.value.push({
     id: createClientId(),
@@ -959,7 +1048,25 @@ function fillTicketFollowup(ticket: TicketResponse): void {
   textareaRef.value?.focus();
 }
 
+function handleTicketFollowup(ticket: TicketResponse): void {
+  if (isLeaveTicket(ticket)) {
+    openLeaveDialog();
+    return;
+  }
+  fillTicketFollowup(ticket);
+}
+
+function isLeaveTicket(ticket: TicketResponse): boolean {
+  return ticket.ticketId.includes("LEAVE")
+    || ticket.requirementType.includes("请假")
+    || ticket.title.includes("请假");
+}
+
 function startEmployeeOaChat(type: "leave" | "reimbursement" | "policy"): void {
+  if (type === "leave") {
+    openLeaveDialog();
+    return;
+  }
   isEmployeeMode.value = false;
   isWorkflowMode.value = false;
   selectedMode.value = type === "policy" ? "rag-chat" : "team-chat";
@@ -1134,6 +1241,73 @@ async function selectEmployee(employeeId: string): Promise<void> {
   employeeMessage.value = "";
   await loadEmployeeOverview(employeeId);
   employeeLoading.value = false;
+}
+
+function openLeaveDialog(): void {
+  const employee = employeeOverview.value?.employee;
+  const fallbackEmployeeId = currentUser.value?.employeeId || selectedEmployeeId.value || "";
+  const fallbackName = currentUser.value?.displayName || "";
+  leaveForm.value = {
+    employeeId: employee?.employeeId || fallbackEmployeeId,
+    leaveType: "ANNUAL",
+    startDate: "",
+    endDate: "",
+    reason: "",
+    autoApprove: false
+  };
+  leaveDialog.value = {
+    open: true,
+    employeeName: employee?.name || fallbackName,
+    submitting: false,
+    message: "",
+    messageType: "idle"
+  };
+}
+
+function closeLeaveDialog(): void {
+  if (leaveDialog.value.submitting) {
+    return;
+  }
+  leaveDialog.value.open = false;
+  leaveDialog.value.message = "";
+}
+
+async function submitLeaveForm(): Promise<void> {
+  if (!canSubmitLeaveForm.value) {
+    leaveDialog.value.message = leaveForm.value.startDate > leaveForm.value.endDate
+      ? "结束日期不能早于开始日期。"
+      : "请完整填写请假类型、日期和原因。";
+    leaveDialog.value.messageType = "error";
+    return;
+  }
+
+  leaveDialog.value.submitting = true;
+  leaveDialog.value.message = "";
+  leaveDialog.value.messageType = "idle";
+  try {
+    const result = await submitLeaveApplication({ ...leaveForm.value });
+    if (!result.success) {
+      leaveDialog.value.message = result.message;
+      leaveDialog.value.messageType = "error";
+      return;
+    }
+    leaveDialog.value.message = result.message;
+    leaveDialog.value.messageType = "success";
+    await refreshEmployeeView();
+    if (canManageWorkflow.value) {
+      await loadWorkflowApplications(false);
+    }
+    setTimeout(() => {
+      if (!leaveDialog.value.submitting) {
+        leaveDialog.value.open = false;
+      }
+    }, 650);
+  } catch (error) {
+    leaveDialog.value.message = `请假提交失败：${extractErrorMessage(error)}`;
+    leaveDialog.value.messageType = "error";
+  } finally {
+    leaveDialog.value.submitting = false;
+  }
 }
 
 function openReviewDialog(application: WorkflowApplication, decision: "APPROVED" | "REJECTED"): void {
@@ -2330,7 +2504,8 @@ onUnmounted(() => {
   backdrop-filter: blur(8px);
 }
 
-.review-dialog {
+.review-dialog,
+.leave-dialog {
   width: min(520px, 100%);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 18px;
@@ -2340,21 +2515,25 @@ onUnmounted(() => {
 }
 
 .review-dialog header,
-.review-dialog footer {
+.review-dialog footer,
+.leave-dialog header,
+.leave-dialog footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.review-dialog header span {
+.review-dialog header span,
+.leave-dialog header span {
   display: block;
   color: #60a5fa;
   font-size: 11px;
   font-weight: 800;
 }
 
-.review-dialog header strong {
+.review-dialog header strong,
+.leave-dialog header strong {
   display: block;
   margin-top: 4px;
   color: #f8fafc;
@@ -2365,6 +2544,53 @@ onUnmounted(() => {
   width: 100%;
   min-height: 120px;
   margin: 16px 0;
+}
+
+.leave-dialog {
+  width: min(680px, 100%);
+}
+
+.leave-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.leave-form-grid select {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+}
+
+.leave-dialog .field {
+  margin-bottom: 0;
+}
+
+.leave-reason-field,
+.auto-approve-field {
+  grid-column: 1 / -1;
+}
+
+.leave-reason-field textarea {
+  min-height: 92px;
+}
+
+.auto-approve-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.auto-approve-field input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
 }
 
 .icon-close-btn {
@@ -2604,6 +2830,10 @@ onUnmounted(() => {
     width: 50px;
     height: 50px;
     flex-basis: 50px;
+  }
+
+  .leave-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
