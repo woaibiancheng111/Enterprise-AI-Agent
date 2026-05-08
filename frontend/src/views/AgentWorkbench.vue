@@ -235,6 +235,30 @@
               </div>
             </div>
 
+            <div v-if="!canManageWorkflow" class="oa-action-panel">
+              <button type="button" @click="startEmployeeOaChat('leave')">
+                <span>请</span>
+                <div>
+                  <strong>发起请假</strong>
+                  <p>AI 会先校验余额，再提交审批</p>
+                </div>
+              </button>
+              <button type="button" @click="startEmployeeOaChat('reimbursement')">
+                <span>报</span>
+                <div>
+                  <strong>提交报销</strong>
+                  <p>整理金额、类别和说明后提交</p>
+                </div>
+              </button>
+              <button type="button" @click="startEmployeeOaChat('policy')">
+                <span>查</span>
+                <div>
+                  <strong>查询制度</strong>
+                  <p>请假、报销、材料要求一键咨询</p>
+                </div>
+              </button>
+            </div>
+
             <div class="admin-kpis employee-kpis">
               <article>
                 <span>待审批</span>
@@ -277,6 +301,16 @@
               <div class="console-section-title">
                 <span>APPLICATIONS</span>
                 <strong>申请记录</strong>
+              </div>
+              <div v-if="!canManageWorkflow" class="oa-reminder-strip">
+                <article>
+                  <span>待跟进</span>
+                  <strong>{{ employeeOverview.summary.pending > 0 ? `${employeeOverview.summary.pending} 条申请等待审批` : "暂无待审批申请" }}</strong>
+                </article>
+                <article>
+                  <span>快捷入口</span>
+                  <strong>聊天区可直接输入：我想从 2026-05-12 开始请 3 天年假</strong>
+                </article>
               </div>
               <div class="application-list">
                 <article
@@ -845,6 +879,18 @@ function appendMessage(message: Omit<ChatMessage, "id">): void {
 function onUsePrompt(prompt: string): void {
   inputMessage.value = prompt;
   textareaRef.value?.focus();
+}
+
+function startEmployeeOaChat(type: "leave" | "reimbursement" | "policy"): void {
+  isEmployeeMode.value = false;
+  isWorkflowMode.value = false;
+  selectedMode.value = type === "policy" ? "rag-chat" : "team-chat";
+  const promptMap = {
+    leave: "我想从 2026-05-12 开始请 3 天年假",
+    reimbursement: "我想申请交通费报销 80 元",
+    policy: "请按公司制度说明请假审批流程"
+  } as const;
+  onUsePrompt(promptMap[type]);
 }
 
 function fillDemoUser(username: string): void {
@@ -1682,9 +1728,11 @@ onUnmounted(() => {
 
 .employee-panel.self-service-panel .employee-toolbar,
 .employee-panel.self-service-panel .workflow-message,
+.employee-panel.self-service-panel .oa-action-panel,
 .employee-panel.self-service-panel .application-board,
 .employee-panel:not(:has(.employee-directory)) .employee-toolbar,
 .employee-panel:not(:has(.employee-directory)) .workflow-message,
+.employee-panel:not(:has(.employee-directory)) .oa-action-panel,
 .employee-panel:not(:has(.employee-directory)) .application-board {
   grid-column: 1 / -1;
 }
@@ -1854,6 +1902,55 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
+.oa-action-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.oa-action-panel button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 84px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  background: rgba(30, 41, 59, 0.34);
+}
+
+.oa-action-panel button:hover {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.oa-action-panel button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #0f766e);
+  font-weight: 800;
+}
+
+.oa-action-panel strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.oa-action-panel p {
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .employee-kpis strong {
   font-size: 22px;
 }
@@ -1870,10 +1967,40 @@ onUnmounted(() => {
 
 .application-board {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   min-height: 0;
   overflow: hidden;
   margin-top: 2px;
+}
+
+.oa-reminder-strip {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.oa-reminder-strip article {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.oa-reminder-strip span {
+  display: block;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.oa-reminder-strip strong {
+  display: block;
+  margin-top: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .application-card {
@@ -2303,6 +2430,11 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .oa-action-panel,
+  .oa-reminder-strip {
+    grid-template-columns: 1fr;
+  }
+
   .employee-directory,
   .admin-detail-panel {
     max-height: none;
@@ -2342,6 +2474,10 @@ onUnmounted(() => {
   .admin-kpis,
   .leave-balance-grid {
     grid-template-columns: 1fr;
+  }
+
+  .oa-action-panel button {
+    min-height: auto;
   }
 
   .employee-avatar-lg {
