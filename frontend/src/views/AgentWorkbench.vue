@@ -737,6 +737,9 @@ const activeAgentCodes = computed(() => {
   if (activeTeamResponse.value) {
     return activeTeamResponse.value.steps.map((item) => item.code);
   }
+  if (selectedMode.value === "team-chat") {
+    return agentRoster.map((item) => item.code);
+  }
   if (selectedMode.value === "tool-chat") {
     return ["responder", "router"];
   }
@@ -1588,7 +1591,7 @@ onUnmounted(() => {
 
 .admin-console {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(620px, 1fr) minmax(280px, 320px);
   gap: 12px;
   min-height: 0;
 }
@@ -1957,17 +1960,18 @@ onUnmounted(() => {
   overflow: auto;
   border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 14px;
+  background: rgba(15, 23, 42, 0.24);
 }
 
 .workflow-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 920px;
+  min-width: 760px;
 }
 
 .workflow-table th,
 .workflow-table td {
-  padding: 12px;
+  padding: 11px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   text-align: left;
   vertical-align: top;
@@ -2004,6 +2008,7 @@ onUnmounted(() => {
   color: #94a3b8;
   font-size: 12px;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 .empty-cell {
@@ -2301,6 +2306,20 @@ onUnmounted(() => {
   .employee-directory,
   .admin-detail-panel {
     max-height: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .admin-console {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-detail-panel {
+    overflow: visible;
+  }
+
+  .workflow-table {
+    min-width: 720px;
   }
 }
 

@@ -30,38 +30,103 @@ textarea {
   overflow: hidden;
 }
 
+:root,
+body,
 .left-panel,
 .message-list,
-.quick-prompts {
+.quick-prompts,
+.admin-detail-panel,
+.employee-panel,
+.employee-overview,
+.directory-list,
+.application-list,
+.workflow-table-wrap,
+.markdown-body pre,
+.document-list {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) rgba(15, 23, 42, 0.25);
 }
 
+.left-panel,
+.message-list,
+.quick-prompts,
+.admin-detail-panel,
+.employee-panel,
+.employee-overview,
+.directory-list,
+.application-list,
+.workflow-table-wrap,
+.markdown-body pre,
+.document-list {
+  scrollbar-gutter: stable;
+}
+
+:root::-webkit-scrollbar,
+body::-webkit-scrollbar,
 .left-panel::-webkit-scrollbar,
 .message-list::-webkit-scrollbar,
-.quick-prompts::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.quick-prompts::-webkit-scrollbar,
+.admin-detail-panel::-webkit-scrollbar,
+.employee-panel::-webkit-scrollbar,
+.employee-overview::-webkit-scrollbar,
+.directory-list::-webkit-scrollbar,
+.application-list::-webkit-scrollbar,
+.workflow-table-wrap::-webkit-scrollbar,
+.markdown-body pre::-webkit-scrollbar,
+.document-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
+:root::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
 .left-panel::-webkit-scrollbar-track,
 .message-list::-webkit-scrollbar-track,
-.quick-prompts::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.2);
+.quick-prompts::-webkit-scrollbar-track,
+.admin-detail-panel::-webkit-scrollbar-track,
+.employee-panel::-webkit-scrollbar-track,
+.employee-overview::-webkit-scrollbar-track,
+.directory-list::-webkit-scrollbar-track,
+.application-list::-webkit-scrollbar-track,
+.workflow-table-wrap::-webkit-scrollbar-track,
+.markdown-body pre::-webkit-scrollbar-track,
+.document-list::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.08);
   border-radius: 999px;
 }
 
+:root::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
 .left-panel::-webkit-scrollbar-thumb,
 .message-list::-webkit-scrollbar-thumb,
-.quick-prompts::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(100, 116, 139, 0.75), rgba(71, 85, 105, 0.75));
+.quick-prompts::-webkit-scrollbar-thumb,
+.admin-detail-panel::-webkit-scrollbar-thumb,
+.employee-panel::-webkit-scrollbar-thumb,
+.employee-overview::-webkit-scrollbar-thumb,
+.directory-list::-webkit-scrollbar-thumb,
+.application-list::-webkit-scrollbar-thumb,
+.workflow-table-wrap::-webkit-scrollbar-thumb,
+.markdown-body pre::-webkit-scrollbar-thumb,
+.document-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.36), rgba(45, 212, 191, 0.28));
+  border: 2px solid rgba(15, 23, 42, 0.68);
   border-radius: 999px;
 }
 
+:root::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
 .left-panel::-webkit-scrollbar-thumb:hover,
 .message-list::-webkit-scrollbar-thumb:hover,
-.quick-prompts::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(100, 116, 139, 0.9));
+.quick-prompts::-webkit-scrollbar-thumb:hover,
+.admin-detail-panel::-webkit-scrollbar-thumb:hover,
+.employee-panel::-webkit-scrollbar-thumb:hover,
+.employee-overview::-webkit-scrollbar-thumb:hover,
+.directory-list::-webkit-scrollbar-thumb:hover,
+.application-list::-webkit-scrollbar-thumb:hover,
+.workflow-table-wrap::-webkit-scrollbar-thumb:hover,
+.markdown-body pre::-webkit-scrollbar-thumb:hover,
+.document-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.62), rgba(45, 212, 191, 0.46));
 }
 
 .bg-orb {
