@@ -45,7 +45,7 @@
 | MCP | Spring AI MCP Server + 本地工具桥接 |
 | 业务数据 | MySQL + MyBatis Plus |
 | 鉴权 | 自定义 JWT + Spring MVC Interceptor |
-| RAG | SimpleVectorStore、BM25、RRF、Rerank、Query Rewrite |
+| RAG | SimpleVectorStore、动态 BM25、RRF、Rerank、Query Rewrite |
 | 前端 | Vue 3、Vite、TypeScript、Axios |
 | Markdown 渲染 | marked + DOMPurify |
 | 会话存储 | Kryo 5.6.2 |
@@ -280,6 +280,8 @@ Authorization: Bearer <token>
 
 非流式对话接口推荐使用 POST JSON，避免长文本和敏感内容进入 URL。流式接口基于浏览器原生 EventSource，仍使用 GET 查询参数。
 
+> 说明：基础对话和 RAG 对话使用模型原生流式输出；工具调用属于事务型请求，需要先完成参数解析、权限校验和工具执行，因此 `/tool-chat/stream` 当前会在工具结果完成后一次性返回完整结果。
+
 ### MCP 集成
 
 | 方法 | 端点 | 说明 |
@@ -414,6 +416,8 @@ LLM 生成回复
   ▼
 引用来源 / 流式响应 / 结构化结果
 ```
+
+当前演示环境使用 Spring AI `SimpleVectorStore`，应用启动时会自动扫描 `src/main/resources/documents` 并重建向量索引；BM25 侧会同步加载文档块，动态计算平均文档长度、文档频率和 IDF。生产环境建议将向量存储切换为 Qdrant、Milvus 或 PGVector，避免大规模知识库每次启动都重新构建索引。
 
 ---
 

@@ -36,6 +36,7 @@ public class HybridSearchService {
     private String basePath;
 
     private final Map<String, List<DocumentContent>> documentCache = new ConcurrentHashMap<>();
+    private volatile Bm25Stats bm25Stats = Bm25Stats.empty();
 
     public HybridSearchService(VectorStore vectorStore, EmbeddingModel embeddingModel,
                               ResourcePatternResolver resourcePatternResolver) {
@@ -138,7 +139,7 @@ public class HybridSearchService {
             for (Map.Entry<String, List<DocumentContent>> entry : documentCache.entrySet()) {
                 String fileName = entry.getKey();
                 for (DocumentContent content : entry.getValue()) {
-                    double score = calculateBM25(content.text(), queryTerms);
+                    double score = calculateBM25(content.text(), queryTerms, bm25Stats);
                     if (score > 0) {
                         scores.put(new DocumentEntry(fileName, content.index()), score);
                     }
@@ -231,37 +232,63 @@ public class HybridSearchService {
     /**
      * 简单分词
      */
-    private String[] tokenize(String text) {
-        return text.toLowerCase()
+    String[] tokenize(String text) {
+        String normalized = text.toLowerCase()
                 .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", " ")
-                .split("\\s+");
+                .trim();
+        if (normalized.isBlank()) {
+            return new String[0];
+        }
+        List<String> tokens = new ArrayList<>();
+        for (String segment : normalized.split("\\s+")) {
+            if (segment.isBlank()) {
+                continue;
+            }
+            tokens.add(segment);
+            if (containsChinese(segment) && segment.length() > 2) {
+                for (int index = 0; index < segment.length() - 1; index++) {
+                    tokens.add(segment.substring(index, index + 2));
+                }
+            }
+        }
+        return tokens.toArray(String[]::new);
     }
 
     /**
      * 计算 BM25 分数
      */
-    private double calculateBM25(String document, String[] queryTerms) {
-        String docLower = document.toLowerCase();
+    double calculateBM25(String document, String[] queryTerms, Bm25Stats stats) {
         double score = 0;
-        double avgDocLen = 100; // 假设平均文档长度
         double k1 = 1.5;
         double b = 0.75;
 
-        int docLen = tokenize(document).length;
-        double docLenNorm = docLen / avgDocLen;
+        String[] documentTerms = tokenize(document);
+        int docLen = documentTerms.length;
+        if (docLen == 0 || stats.totalDocuments() == 0) {
+            return 0;
+        }
+        Map<String, Integer> termFrequency = termFrequency(documentTerms);
+        double docLenNorm = docLen / stats.avgDocLen();
 
         for (String term : queryTerms) {
-            if (docLower.contains(term)) {
-                double tf = 1 + Math.log(1 + countTermFrequency(docLower, term));
-                double idf = Math.log((documentCache.size() + 1) / 1.0);
+            Integer rawTf = termFrequency.get(term);
+            if (rawTf != null && rawTf > 0) {
+                double tf = 1 + Math.log(rawTf);
+                double idf = stats.idf(term);
                 score += tf * idf / (k1 * (1 - b + b * docLenNorm) + tf);
             }
         }
         return score;
     }
 
-    private int countTermFrequency(String text, String term) {
-        return text.split(term, -1).length - 1;
+    private Map<String, Integer> termFrequency(String[] terms) {
+        Map<String, Integer> frequency = new HashMap<>();
+        for (String term : terms) {
+            if (!term.isBlank()) {
+                frequency.merge(term, 1, Integer::sum);
+            }
+        }
+        return frequency;
     }
 
     /**
@@ -300,6 +327,7 @@ public class HybridSearchService {
                 }
                 documentCache.put(fileName, contents);
             }
+            bm25Stats = buildBm25Stats();
 
             log.info("BM25 索引加载完成: {} 个文件, {} 个文档块",
                     documentCache.size(),
@@ -315,7 +343,55 @@ public class HybridSearchService {
      */
     public void clearCache() {
         documentCache.clear();
+        bm25Stats = Bm25Stats.empty();
         log.info("BM25 索引缓存已清除");
+    }
+
+    Bm25Stats buildBm25Stats() {
+        List<DocumentContent> documents = documentCache.values().stream()
+                .flatMap(List::stream)
+                .toList();
+        return buildBm25Stats(documents.stream().map(DocumentContent::text).toList());
+    }
+
+    Bm25Stats buildBm25Stats(List<String> documents) {
+        if (documents.isEmpty()) {
+            return Bm25Stats.empty();
+        }
+
+        Map<String, Integer> documentFrequency = new HashMap<>();
+        int totalLength = 0;
+        for (String document : documents) {
+            String[] terms = tokenize(document);
+            totalLength += terms.length;
+            Arrays.stream(terms)
+                    .filter(term -> !term.isBlank())
+                    .collect(Collectors.toSet())
+                    .forEach(term -> documentFrequency.merge(term, 1, Integer::sum));
+        }
+        double avgDocLen = Math.max(1.0, (double) totalLength / documents.size());
+        return new Bm25Stats(documents.size(), avgDocLen, Map.copyOf(documentFrequency));
+    }
+
+    private boolean containsChinese(String value) {
+        for (int index = 0; index < value.length(); index++) {
+            char c = value.charAt(index);
+            if (c >= '\u4e00' && c <= '\u9fa5') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    record Bm25Stats(int totalDocuments, double avgDocLen, Map<String, Integer> documentFrequency) {
+        static Bm25Stats empty() {
+            return new Bm25Stats(0, 100.0, Map.of());
+        }
+
+        double idf(String term) {
+            int frequency = documentFrequency.getOrDefault(term, 0);
+            return Math.log(1 + (totalDocuments - frequency + 0.5) / (frequency + 0.5));
+        }
     }
 
     // 内部类：文档内容块
