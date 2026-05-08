@@ -54,11 +54,11 @@
         <button type="button" class="secondary-btn logout-btn" @click="onLogout">退出登录</button>
       </section>
 
-      <section class="card">
-        <h2>服务类型</h2>
+      <section class="card primary-service-card">
+        <h2>{{ canManageWorkflow ? "服务类型" : "AI 办事助手" }}</h2>
         <div class="mode-grid">
           <button
-            v-for="item in readyCapabilities"
+            v-for="item in visibleCapabilities"
             :key="item.key"
             type="button"
             :class="['mode-btn', { active: selectedMode === item.key }]"
@@ -68,6 +68,21 @@
           </button>
         </div>
       </section>
+
+      <details v-if="!canManageWorkflow" class="card advanced-service-card">
+        <summary>高级能力</summary>
+        <div class="mode-grid">
+          <button
+            v-for="item in employeeAdvancedCapabilities"
+            :key="item.key"
+            type="button"
+            :class="['mode-btn', { active: selectedMode === item.key }]"
+            @click="onSelectMode(item.key)"
+          >
+            {{ item.name }}
+          </button>
+        </div>
+      </details>
 
       <section class="card">
         <h2>{{ canManageWorkflow ? "后台管理" : "员工服务" }}</h2>
@@ -222,78 +237,72 @@
           <p v-if="employeeMessage" class="workflow-message error">{{ employeeMessage }}</p>
 
           <template v-if="employeeOverview?.employee">
-            <div class="employee-profile-card">
-              <div class="employee-avatar-lg">{{ employeeOverview.employee.name.slice(0, 1) }}</div>
-              <div>
-                <h3>{{ employeeOverview.employee.name }}</h3>
-                <p>{{ employeeOverview.employee.employeeId }} · {{ employeeOverview.employee.department }} · {{ employeeOverview.employee.position }}</p>
-                <div class="employee-contact">
-                  <span>{{ employeeOverview.employee.email }}</span>
-                  <span>{{ employeeOverview.employee.phone }}</span>
-                  <span>入职 {{ employeeOverview.employee.joinDate }}</span>
+            <div class="employee-dashboard">
+              <section class="employee-profile-card">
+                <div class="employee-avatar-lg">{{ employeeOverview.employee.name.slice(0, 1) }}</div>
+                <div>
+                  <span class="employee-profile-label">{{ canManageWorkflow ? "员工档案" : "我的档案" }}</span>
+                  <h3>{{ employeeOverview.employee.name }}</h3>
+                  <p>{{ employeeOverview.employee.employeeId }} · {{ employeeOverview.employee.department }} · {{ employeeOverview.employee.position }}</p>
+                  <div class="employee-contact">
+                    <span>{{ employeeOverview.employee.email }}</span>
+                    <span>{{ employeeOverview.employee.phone }}</span>
+                    <span>入职 {{ employeeOverview.employee.joinDate }}</span>
+                  </div>
                 </div>
-              </div>
+              </section>
+
+              <section class="employee-summary-card">
+                <span>待处理申请</span>
+                <strong>{{ employeeOverview.summary.pending }}</strong>
+                <p>{{ employeeOverview.summary.pending > 0 ? "有申请正在等待审批" : "当前没有等待审批的申请" }}</p>
+              </section>
             </div>
 
             <div v-if="!canManageWorkflow" class="oa-action-panel">
               <button type="button" @click="startEmployeeOaChat('leave')">
                 <span>请</span>
                 <div>
-                  <strong>发起请假</strong>
-                  <p>AI 会先校验余额，再提交审批</p>
+                  <strong>请假</strong>
+                  <p>直接说“明天请 1 天年假”，系统会校验余额并提交</p>
                 </div>
               </button>
               <button type="button" @click="startEmployeeOaChat('reimbursement')">
                 <span>报</span>
                 <div>
-                  <strong>提交报销</strong>
-                  <p>整理金额、类别和说明后提交</p>
+                  <strong>报销</strong>
+                  <p>填写金额和类型，生成待审批报销申请</p>
                 </div>
               </button>
               <button type="button" @click="startEmployeeOaChat('policy')">
                 <span>查</span>
                 <div>
-                  <strong>查询制度</strong>
-                  <p>请假、报销、材料要求一键咨询</p>
+                  <strong>查制度</strong>
+                  <p>查询请假、报销和材料要求</p>
                 </div>
               </button>
-            </div>
-
-            <div class="admin-kpis employee-kpis">
-              <article>
-                <span>待审批</span>
-                <strong>{{ employeeOverview.summary.pending }}</strong>
-              </article>
-              <article>
-                <span>已通过</span>
-                <strong>{{ employeeOverview.summary.approved }}</strong>
-              </article>
-              <article>
-                <span>已驳回</span>
-                <strong>{{ employeeOverview.summary.rejected }}</strong>
-              </article>
-              <article>
-                <span>申请总数</span>
-                <strong>{{ employeeOverview.summary.total }}</strong>
-              </article>
             </div>
 
             <div class="leave-balance-grid">
               <article>
                 <span>年假</span>
-                <strong>{{ employeeOverview.leaveBalance?.annualLeave ?? 0 }} 天</strong>
+                <strong>{{ employeeOverview.leaveBalance?.annualLeave ?? 0 }}</strong>
+                <em>天可用</em>
               </article>
               <article>
                 <span>病假</span>
-                <strong>{{ employeeOverview.leaveBalance?.sickLeave ?? 0 }} 天</strong>
+                <strong>{{ employeeOverview.leaveBalance?.sickLeave ?? 0 }}</strong>
+                <em>天可用</em>
               </article>
               <article>
                 <span>婚假</span>
-                <strong>{{ employeeOverview.leaveBalance?.marriageLeave ?? 0 }} 天</strong>
+                <strong>{{ employeeOverview.leaveBalance?.marriageLeave ?? 0 }}</strong>
+                <em>天可用</em>
               </article>
               <article>
                 <span>产假</span>
-                <strong>{{ employeeOverview.leaveBalance?.maternityLeave ?? 0 }} 天</strong>
+                <strong>{{ employeeOverview.leaveBalance?.maternityLeave ?? 0 }}</strong>
+                <em>天可用</em>
               </article>
             </div>
 
@@ -301,16 +310,6 @@
               <div class="console-section-title">
                 <span>APPLICATIONS</span>
                 <strong>申请记录</strong>
-              </div>
-              <div v-if="!canManageWorkflow" class="oa-reminder-strip">
-                <article>
-                  <span>待跟进</span>
-                  <strong>{{ employeeOverview.summary.pending > 0 ? `${employeeOverview.summary.pending} 条申请等待审批` : "暂无待审批申请" }}</strong>
-                </article>
-                <article>
-                  <span>快捷入口</span>
-                  <strong>聊天区可直接输入：我想从 2026-05-12 开始请 3 天年假</strong>
-                </article>
               </div>
               <div class="application-list">
                 <article
@@ -789,6 +788,18 @@ const canManageWorkflow = computed(() =>
 
 const canManageKnowledgeBase = computed(() => currentUser.value?.role === "ADMIN");
 
+const employeePrimaryCapabilities = computed(() =>
+  readyCapabilities.filter((item) => item.key === "team-chat")
+);
+
+const employeeAdvancedCapabilities = computed(() =>
+  readyCapabilities.filter((item) => item.key !== "team-chat")
+);
+
+const visibleCapabilities = computed(() =>
+  canManageWorkflow.value ? readyCapabilities : employeePrimaryCapabilities.value
+);
+
 const workspaceTitle = computed(() => {
   if (isWorkflowMode.value) return "审批管理后台";
   if (isEmployeeMode.value) return canManageWorkflow.value ? "员工管理视图" : "我的员工视图";
@@ -862,9 +873,9 @@ const healthStatusClass = computed(() => {
 
 const employeeQuickPromptsMap: Record<ReadyCapability, string[]> = {
   "team-chat": [
-    "我想请年假，帮我先看余额再告诉我怎么申请",
-    "我的报销还没处理，帮我判断下一步该找谁",
-    "我想了解差旅报销流程，顺便帮我整理待办"
+    "我明天请 1 天年假",
+    "查一下我的假期余额",
+    "我想申请交通费报销 80 元"
   ],
   chat: [
     "请介绍一下你能帮我办理哪些员工服务",
@@ -953,7 +964,7 @@ function startEmployeeOaChat(type: "leave" | "reimbursement" | "policy"): void {
   isWorkflowMode.value = false;
   selectedMode.value = type === "policy" ? "rag-chat" : "team-chat";
   const promptMap = {
-    leave: "我想从 2026-05-12 开始请 3 天年假",
+    leave: "我明天请 1 天年假",
     reimbursement: "我想申请交通费报销 80 元",
     policy: "请按公司制度说明请假审批流程"
   } as const;
@@ -1503,22 +1514,48 @@ onUnmounted(() => {
 }
 
 .demo-users button {
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid #cbd5e1;
   border-radius: 999px;
   padding: 7px 10px;
-  color: #cbd5e1;
-  background: rgba(30, 41, 59, 0.52);
+  color: #475569;
+  background: #ffffff;
   font-size: 12px;
 }
 
 .demo-users button:hover {
   border-color: rgba(96, 165, 250, 0.45);
-  color: #f8fafc;
+  color: #1d4ed8;
 }
 
 .user-card {
   display: grid;
   gap: 12px;
+}
+
+.primary-service-card h2,
+.advanced-service-card summary {
+  color: #0f172a;
+}
+
+.advanced-service-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.advanced-service-card summary {
+  padding: 14px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.advanced-service-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-service-card .mode-grid {
+  padding: 0 16px 16px;
 }
 
 .user-profile {
@@ -1541,7 +1578,7 @@ onUnmounted(() => {
 
 .user-profile strong {
   display: block;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 14px;
 }
 
@@ -1559,8 +1596,8 @@ onUnmounted(() => {
   display: grid;
   gap: 12px;
   padding: 14px 20px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(15, 23, 42, 0.28);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 .agent-roster {
@@ -1574,10 +1611,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid #dbe3ef;
   border-radius: 12px;
   padding: 10px;
-  background: rgba(30, 41, 59, 0.42);
+  background: #ffffff;
   opacity: 0.72;
 }
 
@@ -1609,7 +1646,7 @@ onUnmounted(() => {
 .agent-tile strong {
   display: block;
   overflow: hidden;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1643,8 +1680,8 @@ onUnmounted(() => {
 .mcp-strip div {
   border-radius: 10px;
   padding: 9px 10px;
-  background: rgba(15, 23, 42, 0.58);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: #ffffff;
+  border: 1px solid #dbe3ef;
 }
 
 .route-strip span,
@@ -1661,7 +1698,7 @@ onUnmounted(() => {
   display: block;
   margin-top: 4px;
   overflow: hidden;
-  color: #e2e8f0;
+  color: #0f172a;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1689,10 +1726,10 @@ onUnmounted(() => {
 
 .admin-kpis article,
 .leave-balance-grid article {
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
   padding: 14px;
-  background: rgba(15, 23, 42, 0.52);
+  background: #f8fafc;
 }
 
 .admin-kpis span,
@@ -1707,7 +1744,7 @@ onUnmounted(() => {
 .leave-balance-grid strong {
   display: block;
   margin-top: 8px;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 24px;
 }
 
@@ -1788,41 +1825,11 @@ onUnmounted(() => {
   min-height: 0;
   padding: 16px 20px 20px;
   overflow: auto;
+  background: #f8fafc;
 }
 
-.employee-panel.self-service-panel,
-.employee-panel:not(:has(.employee-directory)) {
+.employee-panel.self-service-panel {
   grid-template-columns: 1fr;
-}
-
-.employee-panel.self-service-panel .employee-overview,
-.employee-panel:not(:has(.employee-directory)) .employee-overview {
-  grid-template-columns: minmax(320px, 1.25fr) minmax(280px, 0.75fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
-  align-content: start;
-}
-
-.employee-panel.self-service-panel .employee-toolbar,
-.employee-panel.self-service-panel .workflow-message,
-.employee-panel.self-service-panel .oa-action-panel,
-.employee-panel.self-service-panel .application-board,
-.employee-panel:not(:has(.employee-directory)) .employee-toolbar,
-.employee-panel:not(:has(.employee-directory)) .workflow-message,
-.employee-panel:not(:has(.employee-directory)) .oa-action-panel,
-.employee-panel:not(:has(.employee-directory)) .application-board {
-  grid-column: 1 / -1;
-}
-
-.employee-panel.self-service-panel .employee-profile-card,
-.employee-panel:not(:has(.employee-directory)) .employee-profile-card {
-  min-height: 178px;
-}
-
-.employee-panel.self-service-panel .admin-kpis,
-.employee-panel.self-service-panel .leave-balance-grid,
-.employee-panel:not(:has(.employee-directory)) .admin-kpis,
-.employee-panel:not(:has(.employee-directory)) .leave-balance-grid {
-  align-self: stretch;
 }
 
 .employee-directory {
@@ -1911,8 +1918,11 @@ onUnmounted(() => {
   display: grid;
   grid-template-rows: auto auto auto auto minmax(0, 1fr);
   gap: 14px;
-  padding: 16px;
+  padding: 18px;
   overflow: auto;
+  border-color: #dbe3ef;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
 }
 
 .employee-toolbar {
@@ -1923,7 +1933,7 @@ onUnmounted(() => {
 }
 
 .employee-toolbar span {
-  color: #60a5fa;
+  color: #2563eb;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -1932,7 +1942,13 @@ onUnmounted(() => {
 .employee-toolbar h3,
 .employee-profile-card h3 {
   margin: 3px 0 0;
-  color: #f8fafc;
+  color: #0f172a;
+}
+
+.employee-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 12px;
 }
 
 .employee-profile-card {
@@ -1940,12 +1956,19 @@ onUnmounted(() => {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: center;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 14px;
-  padding: 18px;
-  background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(8, 47, 73, 0.16)),
-    rgba(15, 23, 42, 0.5);
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.employee-profile-label,
+.employee-summary-card span,
+.leave-balance-grid em {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .employee-avatar-lg {
@@ -1958,7 +1981,7 @@ onUnmounted(() => {
 
 .employee-profile-card p {
   margin: 5px 0 0;
-  color: #94a3b8;
+  color: #475569;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -1973,9 +1996,32 @@ onUnmounted(() => {
 .employee-contact span {
   border-radius: 999px;
   padding: 5px 9px;
-  color: #cbd5e1;
-  background: rgba(15, 23, 42, 0.54);
+  color: #334155;
+  background: #e2e8f0;
   font-size: 11px;
+}
+
+.employee-summary-card {
+  display: grid;
+  align-content: center;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 16px;
+  background: #eff6ff;
+}
+
+.employee-summary-card strong {
+  margin-top: 6px;
+  color: #1d4ed8;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.employee-summary-card p {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .oa-action-panel {
@@ -1989,17 +2035,18 @@ onUnmounted(() => {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
-  min-height: 84px;
-  border: 1px solid rgba(96, 165, 250, 0.18);
-  border-radius: 14px;
+  min-height: 78px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
   padding: 14px;
   text-align: left;
-  background: rgba(30, 41, 59, 0.34);
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
 }
 
 .oa-action-panel button:hover {
-  border-color: rgba(96, 165, 250, 0.5);
-  background: rgba(37, 99, 235, 0.14);
+  border-color: #60a5fa;
+  background: #eff6ff;
 }
 
 .oa-action-panel button > span {
@@ -2016,19 +2063,15 @@ onUnmounted(() => {
 
 .oa-action-panel strong {
   display: block;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 14px;
 }
 
 .oa-action-panel p {
   margin: 5px 0 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
   line-height: 1.45;
-}
-
-.employee-kpis strong {
-  font-size: 22px;
 }
 
 .leave-balance-grid {
@@ -2037,55 +2080,56 @@ onUnmounted(() => {
   gap: 10px;
 }
 
+.leave-balance-grid article {
+  border-color: #dbe3ef;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.leave-balance-grid span {
+  color: #64748b;
+}
+
 .leave-balance-grid strong {
-  font-size: 22px;
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 26px;
+}
+
+.leave-balance-grid em {
+  margin-top: 2px;
+  font-style: normal;
 }
 
 .application-board {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto 1fr;
   min-height: 0;
   overflow: hidden;
   margin-top: 2px;
 }
 
-.oa-reminder-strip {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.oa-reminder-strip article {
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 12px;
-  padding: 12px;
-  background: rgba(15, 23, 42, 0.42);
-}
-
-.oa-reminder-strip span {
-  display: block;
-  color: #60a5fa;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-}
-
-.oa-reminder-strip strong {
-  display: block;
-  margin-top: 6px;
-  color: #e2e8f0;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .application-card {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
   padding: 13px;
-  background: rgba(30, 41, 59, 0.38);
+  background: #ffffff;
+}
+
+.employee-overview .console-section-title strong,
+.employee-overview .application-card strong {
+  color: #0f172a;
+}
+
+.employee-overview .console-section-title span {
+  color: #2563eb;
+}
+
+.employee-overview .application-card p,
+.employee-overview .application-card footer {
+  color: #64748b;
 }
 
 .application-card .status-pill {
@@ -2506,8 +2550,8 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .oa-action-panel,
-  .oa-reminder-strip {
+  .employee-dashboard,
+  .oa-action-panel {
     grid-template-columns: 1fr;
   }
 

@@ -31,6 +31,7 @@ public class ToolOrchestrationService {
     private static final Pattern DAYS_PATTERN = Pattern.compile("(\\d+)\\s*天");
     private static final Pattern CHINESE_DAYS_PATTERN = Pattern.compile("([一二两三四五六七八九十]+)\\s*天");
     private static final Pattern LEAVE_APPLICATION_PATTERN = Pattern.compile("[申请办理].*假|请假|休假|年假|病假|事假|婚假|产假|请\\s*\\d+\\s*天|休\\s*\\d+\\s*天|请[一二两三四五六七八九十]+天|休[一二两三四五六七八九十]+天");
+    private static final Pattern LEAVE_DURATION_PATTERN = Pattern.compile("(?:请|休)\\s*(?:\\d+|[一二两三四五六七八九十]+)\\s*天");
     private static final Pattern LEAVE_STATUS_PATTERN = Pattern.compile("\\bL\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern REIMBURSEMENT_STATUS_PATTERN = Pattern.compile("\\bR\\d{4}\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern MONEY_PATTERN = Pattern.compile("(?<![A-Za-z])(?:金额)?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:元|块|rmb|RMB)");
@@ -65,8 +66,8 @@ public class ToolOrchestrationService {
             return false;
         }
         String normalized = message.toLowerCase(Locale.ROOT);
-        return LEAVE_APPLICATION_PATTERN.matcher(message).find()
-                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "给我", "我要", "我想");
+        return isLeaveApplicationIntent(message, normalized)
+                || containsAny(normalized, "报销", "发票", "交通费", "差旅", "餐费");
     }
 
     private Optional<String> tryHandle(String message, boolean includeUtilityFallbacks) {
@@ -90,8 +91,7 @@ public class ToolOrchestrationService {
             return Optional.of(formatEmployeeInfo(employeeId.get()));
         }
 
-        if (employeeId.isPresent() && LEAVE_APPLICATION_PATTERN.matcher(message).find()
-                && containsAny(normalized, "申请", "办理", "帮员工", "帮我", "给我", "我要", "我想")) {
+        if (employeeId.isPresent() && isLeaveApplicationIntent(message, normalized)) {
             return Optional.of(applyLeave(message, employeeId.get()));
         }
 
@@ -240,21 +240,11 @@ public class ToolOrchestrationService {
         Optional<Integer> daysValue = extractDays(message);
 
         if (startDateValue.isEmpty()) {
-            return """
-                    已识别到请假申请意图，但缺少开始日期，暂不提交申请。
-
-                    请补充开始日期，例如：
-                    - `我想从 2026-05-12 开始请 3 天年假`
-                    - `我明天请 1 天年假`
-                    """;
+            return "已识别到请假申请，还差开始日期。直接补一句 `明天`、`后天` 或 `2026-05-12` 即可。";
         }
 
         if (daysValue.isEmpty()) {
-            return """
-                    已识别到请假申请意图，但缺少请假天数，暂不提交申请。
-
-                    请补充天数，例如：`我想从 2026-05-12 开始请 3 天年假`。
-                    """;
+            return "已识别到请假申请，还差请假天数。直接补一句 `1 天`、`3 天` 这样的天数即可。";
         }
 
         String startDate = startDateValue.get();
@@ -271,11 +261,8 @@ public class ToolOrchestrationService {
             return """
                     已调用工具：`getLeaveBalance`
 
-                    请假申请未提交：%s余额不足。
-                    - 员工：%s
-                    - 本次申请：%d 天
-                    - 当前可用：%d 天
-                    """.formatted(leaveTypeLabel(leaveType), employeeId, days, availableDays);
+                    %s余额不足，本次请假未提交：你要请 %d 天，当前可用 %d 天。
+                    """.formatted(leaveTypeLabel(leaveType), days, availableDays);
         }
 
         EmployeeServiceTools.LeaveApplicationResult result = employeeServiceTools.applyLeave(
@@ -297,26 +284,37 @@ public class ToolOrchestrationService {
                     """.formatted(result.getMessage(), employeeId, leaveType, startDate, endDate, days);
         }
 
+        String calledTools = containsAny(message, "今天", "明天", "后天")
+                ? "`getCurrentDate`、`getLeaveBalance`、`applyLeave`"
+                : "`getLeaveBalance`、`applyLeave`";
         return """
-                已调用工具：`getLeaveBalance`、`applyLeave`
+                已调用工具：%s
 
-                已先校验%s余额，余额充足，请假申请已提交成功。
-                - 申请编号：%s
-                - 员工：%s
-                - 假期类型：%s
-                - 日期：%s 至 %s，共 %d 天
-                - 提交后剩余：%d 天
+                请假申请已提交。
+                - 编号：%s
+                - 类型：%s
+                - 时间：%s 至 %s，共 %d 天
+                - 剩余%s：%d 天
                 - 状态：待审批
                 """.formatted(
-                leaveTypeLabel(leaveType),
+                calledTools,
                 result.getApplicationId(),
-                employeeId,
                 leaveTypeLabel(leaveType),
                 startDate,
                 endDate,
                 days,
+                leaveTypeLabel(leaveType),
                 availableDays - days
         );
+    }
+
+    private boolean isLeaveApplicationIntent(String message, String normalized) {
+        if (!LEAVE_APPLICATION_PATTERN.matcher(message).find()) {
+            return false;
+        }
+        return containsAny(normalized, "申请", "办理", "帮员工", "帮我", "给我", "我要", "我想", "今天", "明天", "后天")
+                || LEAVE_DURATION_PATTERN.matcher(message).find()
+                || extractDate(message).isPresent();
     }
 
     private String applyReimbursement(String message, String employeeId) {

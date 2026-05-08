@@ -75,7 +75,7 @@ class ToolOrchestrationServiceTest {
         Optional<String> answer = service.tryHandleBusinessOperation("给我请3天");
 
         assertTrue(answer.isPresent());
-        assertTrue(answer.get().contains("缺少开始日期"));
+        assertTrue(answer.get().contains("还差开始日期"));
         verify(employeeServiceTools, never()).applyLeave(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -99,7 +99,24 @@ class ToolOrchestrationServiceTest {
         assertTrue(answer.get().contains("getLeaveBalance"));
         assertTrue(answer.get().contains("applyLeave"));
         assertTrue(answer.get().contains("L0008"));
-        assertTrue(answer.get().contains("提交后剩余：5 天"));
+        assertTrue(answer.get().contains("剩余年假：5 天"));
+    }
+
+    @Test
+    void submitsNaturalTomorrowLeaveWithoutExtraDateInput() {
+        CurrentUserContext.set(new CurrentUser("U001", "zhangsan", "E001", "张三", "EMPLOYEE"));
+        when(timeTools.getCurrentDate()).thenReturn("2026-05-08");
+        when(employeeServiceTools.getLeaveBalance("E001"))
+                .thenReturn(new EmployeeServiceTools.LeaveBalanceInfo("E001", 8, 5, 10, 0));
+        when(employeeServiceTools.applyLeave("E001", "ANNUAL", "2026-05-09", "2026-05-09", "由智能工具调用根据用户描述创建"))
+                .thenReturn(new EmployeeServiceTools.LeaveApplicationResult(true, "请假申请已提交", "L0010"));
+
+        Optional<String> answer = service.tryHandleBusinessOperation("我明天请 1 天年假");
+
+        assertTrue(answer.isPresent());
+        assertTrue(answer.get().contains("getCurrentDate"));
+        assertTrue(answer.get().contains("L0010"));
+        assertTrue(answer.get().contains("2026-05-09 至 2026-05-09"));
     }
 
     @Test
