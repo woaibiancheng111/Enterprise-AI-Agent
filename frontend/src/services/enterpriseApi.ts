@@ -100,13 +100,9 @@ export type StreamCallback = (chunk: string) => void;
 export type StreamDoneCallback = (fullContent: string) => void;
 export type StreamErrorCallback = (error: Error) => void;
 
-const streamEndpointMap: Record<ReadyCapability, string> = {
-  "team-chat": "/enterprise/team-chat",
+const streamEndpointMap: Partial<Record<ReadyCapability, string>> = {
   chat: "/enterprise/chat/stream",
-  "rag-chat": "/enterprise/rag-chat/stream",
-  ticket: "/enterprise/ticket",
-  "tool-chat": "/enterprise/tool-chat/stream",
-  mcp: "/mcp/chat"
+  "rag-chat": "/enterprise/rag-chat/stream"
 };
 
 export async function getMcpStatus(): Promise<McpStatus> {

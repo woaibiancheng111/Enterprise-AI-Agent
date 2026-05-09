@@ -276,11 +276,10 @@ Authorization: Bearer <token>
 | POST | `/api/enterprise/tool-chat` | 企业业务工具对话 |
 | GET | `/api/enterprise/chat/stream` | 基础流式对话 |
 | GET | `/api/enterprise/rag-chat/stream` | RAG 流式对话 |
-| GET | `/api/enterprise/tool-chat/stream` | 工具调用流式对话 |
 
 非流式对话接口推荐使用 POST JSON，避免长文本和敏感内容进入 URL。流式接口基于浏览器原生 EventSource，仍使用 GET 查询参数。
 
-> 说明：基础对话和 RAG 对话使用模型原生流式输出；工具调用属于事务型请求，需要先完成参数解析、权限校验和工具执行，因此 `/tool-chat/stream` 当前会在工具结果完成后一次性返回完整结果。
+> 说明：基础对话和 RAG 对话使用模型原生流式输出；工具调用属于事务型请求，需要先完成参数解析、权限校验和工具执行，因此只提供 POST 完整结果接口，不伪装成逐 token 流式。
 
 ### MCP 集成
 

@@ -554,16 +554,6 @@ public class EnterpriseApp {
         }
     }
 
-    /**
-     * 使用MCP工具进行流式对话
-     * @param message 用户消息
-     * @param chatId 会话ID
-     * @return 内容块的Flux流
-     */
-    public Flux<String> streamChatWithTools(String message, String chatId) {
-        return Flux.just(doChatWithTools(message, chatId));
-    }
-
     private Optional<String> tryHandleBusinessOperation(String message) {
         return toolOrchestrationService.tryHandleBusinessOperation(message);
     }

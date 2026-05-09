@@ -128,25 +128,6 @@ public class EnterpriseController {
         return enterpriseApp.doChatWithTools(request.message(), resolveChatId(request.chatId()));
     }
 
-    @GetMapping(value = "/tool-chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> toolChatStream(
-            @RequestParam String message,
-            @RequestParam(defaultValue = "default-user") String chatId) {
-        return enterpriseApp.streamChatWithTools(message, resolveChatId(chatId))
-                .map(content -> ServerSentEvent.<String>builder()
-                        .id("1")
-                        .event("chunk")
-                        .data(content)
-                        .build())
-                .concatWith(Flux.just(
-                        ServerSentEvent.<String>builder()
-                                .id("end")
-                                .event("done")
-                                .data("[DONE]")
-                                .build()
-                ));
-    }
-
     private String resolveChatId(String chatId) {
         return conversationIdResolver.resolve(chatId);
     }
