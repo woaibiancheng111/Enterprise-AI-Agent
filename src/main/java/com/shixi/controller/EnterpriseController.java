@@ -1,5 +1,10 @@
 package com.shixi.controller;
 
+import com.shixi.business.service.ServiceTicketService;
+import com.shixi.business.service.ToolAuditService;
+import com.shixi.security.CurrentUser;
+import com.shixi.security.CurrentUserContext;
+import com.shixi.security.ForbiddenException;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +28,12 @@ public class EnterpriseController {
 
     @Resource
     private DigitalTeamService digitalTeamService;
+
+    @Resource
+    private ServiceTicketService serviceTicketService;
+
+    @Resource
+    private ToolAuditService toolAuditService;
 
     @Resource
     private ConversationIdResolver conversationIdResolver;
@@ -60,6 +71,25 @@ public class EnterpriseController {
     @PostMapping("/ticket")
     public Object generateTicket(@RequestBody ChatRequest request) {
         return enterpriseApp.doChatWithReport(request.message(), resolveChatId(request.chatId()));
+    }
+
+    @PostMapping("/ticket/submit")
+    public ServiceTicketService.SubmitTicketResult submitTicket(@RequestBody EnterpriseApp.EmployeeTicket ticket) {
+        CurrentUser user = CurrentUserContext.require();
+        if (ticket.employeeId() != null && !ticket.employeeId().isBlank()
+                && !user.canAccessEmployee(ticket.employeeId())) {
+            throw new ForbiddenException("当前账号无权提交该员工的工单");
+        }
+        ServiceTicketService.SubmitTicketResult result = serviceTicketService.submit(ticket, user);
+        toolAuditService.record(
+                "submitServiceTicket",
+                "ticket",
+                ticket.employeeId(),
+                ticket,
+                result,
+                result.success()
+        );
+        return result;
     }
 
     @GetMapping("/team-chat")

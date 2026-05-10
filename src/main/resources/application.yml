@@ -12,6 +12,12 @@ spring:
         type: SYNC
         sse-message-endpoint: /mcp/message
         tool-change-notification: true
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_PORT:6334}
+        collection-name: ${QDRANT_COLLECTION_NAME:enterprise-knowledge}
+        initialize-schema: true
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -80,7 +86,7 @@ rag:
 
 # ==================== 知识库配置 ====================
 knowledge:
-  base-path: ${KNOWLEDGE_BASE_PATH:src/main/resources/documents}
+  base-path: ${KNOWLEDGE_BASE_PATH:data/documents}
 
 enterprise:
   security:

@@ -77,6 +77,32 @@ CREATE TABLE IF NOT EXISTS reimbursement_applications (
     FOREIGN KEY (employee_id) REFERENCES employees (employee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS service_tickets (
+  ticket_id VARCHAR(64) NOT NULL,
+  employee_id VARCHAR(32) NULL,
+  employee_name VARCHAR(64) NOT NULL,
+  department VARCHAR(64) NOT NULL,
+  requirement_type VARCHAR(64) NOT NULL,
+  title VARCHAR(128) NOT NULL,
+  description TEXT NOT NULL,
+  priority VARCHAR(16) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  assignee_group VARCHAR(64) NOT NULL,
+  sla VARCHAR(64) NOT NULL,
+  required_fields TEXT NULL,
+  action_items TEXT NULL,
+  submitted_by VARCHAR(64) NOT NULL,
+  submitted_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (ticket_id),
+  KEY idx_service_tickets_employee (employee_id),
+  KEY idx_service_tickets_status (status),
+  KEY idx_service_tickets_assignee_group (assignee_group),
+  KEY idx_service_tickets_submitted_at (submitted_at),
+  CONSTRAINT fk_service_tickets_employee
+    FOREIGN KEY (employee_id) REFERENCES employees (employee_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS tool_call_logs (
   id BIGINT NOT NULL AUTO_INCREMENT,
   tool_name VARCHAR(128) NOT NULL,

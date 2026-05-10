@@ -65,6 +65,9 @@ frontend/.env.*.local
 *.log
 logs/
 
+### Local tool binaries ###
+tools/qdrant/
+
 ### OS ###
 Thumbs.db
 .DS_Store

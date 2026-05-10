@@ -12,6 +12,7 @@ import type {
   ReadyCapability,
   SubmitLeaveRequest,
   SubmitLeaveResponse,
+  SubmitTicketResponse,
   TicketResponse,
   UserProfile,
   WorkflowApplicationListResponse
@@ -84,6 +85,11 @@ export async function requestEnterprise(
     const mcpData = data as unknown as McpChatResponse;
     return `${mcpData.content}\n\n---\n${mcpData.trace}`;
   }
+  return data;
+}
+
+export async function submitServiceTicket(ticket: TicketResponse): Promise<SubmitTicketResponse> {
+  const { data } = await http.post<SubmitTicketResponse>("/enterprise/ticket/submit", ticket);
   return data;
 }
 

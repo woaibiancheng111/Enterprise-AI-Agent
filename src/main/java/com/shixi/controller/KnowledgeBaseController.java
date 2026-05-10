@@ -1,6 +1,8 @@
 package com.shixi.controller;
 
 import com.shixi.service.DocumentUploadService;
+import com.shixi.rag.EnterpriseAppVectorStoreConfig;
+import com.shixi.rag.service.HybridSearchService;
 import com.shixi.security.CurrentUser;
 import com.shixi.security.CurrentUserContext;
 import com.shixi.security.ForbiddenException;
@@ -21,9 +23,16 @@ import java.util.Map;
 public class KnowledgeBaseController {
 
     private final DocumentUploadService documentUploadService;
+    private final EnterpriseAppVectorStoreConfig vectorStoreConfig;
+    private final HybridSearchService hybridSearchService;
 
-    public KnowledgeBaseController(DocumentUploadService documentUploadService) {
+    public KnowledgeBaseController(
+            DocumentUploadService documentUploadService,
+            EnterpriseAppVectorStoreConfig vectorStoreConfig,
+            HybridSearchService hybridSearchService) {
         this.documentUploadService = documentUploadService;
+        this.vectorStoreConfig = vectorStoreConfig;
+        this.hybridSearchService = hybridSearchService;
     }
 
     @GetMapping("/list")
@@ -69,9 +78,11 @@ public class KnowledgeBaseController {
 
             // 上传并解析文档
             List<Document> documents = documentUploadService.parseAndStoreDocument(file);
+            vectorStoreConfig.addDocuments(documents);
+            hybridSearchService.clearCache();
             
             result.put("success", true);
-            result.put("message", "文档上传成功");
+            result.put("message", "文档上传成功，索引已更新");
             result.put("filename", filename);
             result.put("chunks", documents.size());
             
@@ -92,8 +103,12 @@ public class KnowledgeBaseController {
         Map<String, Object> result = new HashMap<>();
         try {
             boolean deleted = documentUploadService.deleteDocument(filename);
+            if (deleted) {
+                vectorStoreConfig.deleteDocumentFromVectorStore(filename);
+                hybridSearchService.clearCache();
+            }
             result.put("success", deleted);
-            result.put("message", deleted ? "删除成功" : "删除失败，文件不存在");
+            result.put("message", deleted ? "删除成功，索引已更新" : "删除失败，文件不存在");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("文档删除失败", e);
@@ -108,7 +123,8 @@ public class KnowledgeBaseController {
         assertAdmin();
         Map<String, Object> result = new HashMap<>();
         try {
-            documentUploadService.reloadVectorStore();
+            vectorStoreConfig.clearAndReload();
+            hybridSearchService.clearCache();
             result.put("success", true);
             result.put("message", "知识库重新加载成功");
             return ResponseEntity.ok(result);

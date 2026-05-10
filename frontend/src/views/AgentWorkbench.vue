@@ -522,7 +522,7 @@
                 <div>
                   <span>{{ message.ticket.ticketId }}</span>
                   <strong>{{ message.ticket.title }}</strong>
-                  <p>{{ message.ticket.missingFields.length > 0 ? "工单草稿已生成，补齐信息后即可转交服务台。" : "信息已基本齐全，可转交服务台处理。" }}</p>
+                  <p>{{ ticketSummaryText(message.ticket) }}</p>
                 </div>
                 <em>{{ message.ticket.priority }}</em>
               </div>
@@ -532,7 +532,7 @@
                   <strong>{{ message.ticket.missingFields.join("、") }}</strong>
                 </div>
                 <button type="button" class="secondary-btn" @click="handleTicketFollowup(message.ticket)">
-                  继续补充
+                  填写表单
                 </button>
               </div>
               <div class="ticket-meta-grid">
@@ -574,6 +574,30 @@
                   <li v-for="item in message.ticket.actionItems" :key="item">{{ item }}</li>
                 </ol>
               </div>
+              <div v-if="message.ticket.status === 'READY_TO_SUBMIT'" class="ticket-submit-panel">
+                <div>
+                  <span>服务台提交</span>
+                  <strong>确认后提交至{{ message.ticket.assigneeGroup }}</strong>
+                </div>
+                <button
+                  type="button"
+                  class="primary-btn"
+                  :disabled="isTicketSubmitting(message.ticket.ticketId)"
+                  @click="submitTicket(message.ticket)"
+                >
+                  {{ isTicketSubmitting(message.ticket.ticketId) ? "提交中..." : "提交服务台" }}
+                </button>
+              </div>
+              <div v-else-if="message.ticket.status === 'SUBMITTED'" class="ticket-submitted-panel">
+                <span>已提交</span>
+                <strong>{{ message.ticket.assigneeGroup }}已接收</strong>
+              </div>
+              <p
+                v-if="ticketSubmitMessages[message.ticket.ticketId]?.text"
+                :class="['ticket-submit-message', ticketSubmitMessages[message.ticket.ticketId].type]"
+              >
+                {{ ticketSubmitMessages[message.ticket.ticketId].text }}
+              </p>
             </section>
           </template>
           <pre v-else-if="message.isJson">{{ message.text }}</pre>
@@ -656,6 +680,54 @@
           </button>
         </footer>
       </section>
+    </div>
+
+    <div v-if="ticketFormDialog.open" class="modal-backdrop" @click.self="closeTicketFormDialog">
+      <form class="ticket-form-dialog" @submit.prevent="submitTicketForm">
+        <header>
+          <div>
+            <span>补充工单信息</span>
+            <strong>{{ ticketFormDialog.ticket?.ticketId }}</strong>
+            <p>{{ ticketFormDialog.ticket?.title }}</p>
+          </div>
+          <button type="button" class="icon-close-btn" @click="closeTicketFormDialog">×</button>
+        </header>
+
+        <div class="ticket-form-grid">
+          <label
+            v-for="field in ticketFormDialog.fields"
+            :key="field"
+            :class="['field', 'ticket-form-field', { wide: isLongTicketField(field) }]"
+          >
+            <span>{{ field }}</span>
+            <textarea
+              v-if="isLongTicketField(field)"
+              v-model.trim="ticketFormDialog.values[field]"
+              :placeholder="ticketFieldPlaceholder(field)"
+              rows="3"
+            ></textarea>
+            <input
+              v-else
+              v-model.trim="ticketFormDialog.values[field]"
+              :type="ticketFieldInputType(field)"
+              :placeholder="ticketFieldPlaceholder(field)"
+            />
+          </label>
+        </div>
+
+        <p v-if="ticketFormDialog.message" class="ticket-form-error">
+          {{ ticketFormDialog.message }}
+        </p>
+
+        <footer>
+          <button type="button" class="secondary-btn" :disabled="isStreaming" @click="closeTicketFormDialog">
+            取消
+          </button>
+          <button type="submit" class="primary-btn" :disabled="isStreaming || !canSubmitTicketForm">
+            {{ isStreaming ? "提交中..." : "提交补充" }}
+          </button>
+        </footer>
+      </form>
     </div>
 
     <div v-if="leaveDialog.open" class="modal-backdrop">
@@ -744,6 +816,7 @@ import {
   reviewLeaveApplication,
   reviewReimbursementApplication,
   submitLeaveApplication,
+  submitServiceTicket,
   createStreamController
 } from "../services/enterpriseApi";
 import KnowledgeBaseUpload from "../components/KnowledgeBaseUpload.vue";
@@ -805,6 +878,8 @@ const selectedEmployeeId = ref("");
 const employeeSearch = ref("");
 const employeeDepartmentFilter = ref("all");
 const employeeLoading = ref(false);
+const submittingTicketIds = ref<string[]>([]);
+const ticketSubmitMessages = ref<Record<string, { type: "success" | "error"; text: string }>>({});
 
 function createClientId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -836,6 +911,19 @@ const leaveForm = ref({
   endDate: "",
   reason: "",
   autoApprove: false
+});
+const ticketFormDialog = ref<{
+  open: boolean;
+  ticket: TicketResponse | null;
+  fields: string[];
+  values: Record<string, string>;
+  message: string;
+}>({
+  open: false,
+  ticket: null,
+  fields: [],
+  values: {},
+  message: ""
 });
 
 const messageListRef = ref<HTMLElement | null>(null);
@@ -1030,6 +1118,11 @@ const canSubmitLeaveForm = computed(() =>
   )
 );
 
+const canSubmitTicketForm = computed(() =>
+  ticketFormDialog.value.fields.length > 0
+    && ticketFormDialog.value.fields.every((field) => Boolean(ticketFormDialog.value.values[field]?.trim()))
+);
+
 function appendMessage(message: Omit<ChatMessage, "id">): void {
   messages.value.push({
     id: createClientId(),
@@ -1042,24 +1135,120 @@ function onUsePrompt(prompt: string): void {
   textareaRef.value?.focus();
 }
 
-function fillTicketFollowup(ticket: TicketResponse): void {
-  const fields = ticket.missingFields.length > 0 ? ticket.missingFields : ticket.requiredFields;
-  inputMessage.value = `补充工单 ${ticket.ticketId}：${fields.map((field) => `${field}：`).join("；")}`;
-  textareaRef.value?.focus();
+function handleTicketFollowup(ticket: TicketResponse): void {
+  openTicketFollowupForm(ticket);
 }
 
-function handleTicketFollowup(ticket: TicketResponse): void {
-  if (isLeaveTicket(ticket)) {
-    openLeaveDialog();
+function openTicketFollowupForm(ticket: TicketResponse): void {
+  const fields = ticket.missingFields.length > 0 ? ticket.missingFields : ticket.requiredFields;
+  const values = fields.reduce<Record<string, string>>((accumulator, field) => {
+    accumulator[field] = getTicketFieldInitialValue(ticket, field);
+    return accumulator;
+  }, {});
+
+  ticketFormDialog.value = {
+    open: true,
+    ticket,
+    fields,
+    values,
+    message: ""
+  };
+
+  nextTick(() => {
+    const firstField = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      ".ticket-form-dialog input:not([disabled]), .ticket-form-dialog textarea:not([disabled])"
+    );
+    firstField?.focus();
+  });
+}
+
+function closeTicketFormDialog(): void {
+  if (isStreaming.value) {
     return;
   }
-  fillTicketFollowup(ticket);
+  ticketFormDialog.value = {
+    open: false,
+    ticket: null,
+    fields: [],
+    values: {},
+    message: ""
+  };
 }
 
-function isLeaveTicket(ticket: TicketResponse): boolean {
-  return ticket.ticketId.includes("LEAVE")
-    || ticket.requirementType.includes("请假")
-    || ticket.title.includes("请假");
+async function submitTicketForm(): Promise<void> {
+  const dialog = ticketFormDialog.value;
+  const ticket = dialog.ticket;
+  if (!ticket || isStreaming.value) {
+    return;
+  }
+
+  const missingField = dialog.fields.find((field) => !dialog.values[field]?.trim());
+  if (missingField) {
+    dialog.message = `请补充${missingField}。`;
+    return;
+  }
+
+  const supplement = dialog.fields
+    .map((field) => `${field}：${dialog.values[field].trim()}`)
+    .join("；");
+  ticketFormDialog.value = {
+    open: false,
+    ticket: null,
+    fields: [],
+    values: {},
+    message: ""
+  };
+  isEmployeeMode.value = false;
+  isWorkflowMode.value = false;
+  selectedMode.value = "ticket";
+  inputMessage.value = `补充工单 ${ticket.ticketId}：${supplement}`;
+  await nextTick();
+  onSend();
+}
+
+function getTicketFieldInitialValue(ticket: TicketResponse, field: string): string {
+  const normalizedField = field.replace(/\s/g, "");
+  const employee = employeeOverview.value?.employee;
+
+  if (normalizedField.includes("申请人姓名") || normalizedField.includes("员工姓名")) {
+    return ticket.employeeName || employee?.name || currentUser.value?.displayName || "";
+  }
+  if (
+    normalizedField.includes("员工工号")
+    || normalizedField.includes("员工编号")
+    || normalizedField.includes("申请人工号")
+  ) {
+    return ticket.employeeId || employee?.employeeId || currentUser.value?.employeeId || "";
+  }
+  if (normalizedField.includes("所属部门") || normalizedField.includes("部门")) {
+    return isUsableTicketValue(ticket.department) ? ticket.department : employee?.department || "";
+  }
+
+  return "";
+}
+
+function isUsableTicketValue(value: string | null | undefined): value is string {
+  if (!value) {
+    return false;
+  }
+  return !["待确认", "待补充", "未知", "未提供"].some((keyword) => value.includes(keyword));
+}
+
+function isLongTicketField(field: string): boolean {
+  return /(说明|原因|描述|用途|备注|详情|需求)/.test(field);
+}
+
+function ticketFieldInputType(field: string): "date" | "text" {
+  return /(日期|时间)/.test(field) ? "date" : "text";
+}
+
+function ticketFieldPlaceholder(field: string): string {
+  if (/姓名/.test(field)) return "例如：张三";
+  if (/部门/.test(field)) return "例如：行政服务部";
+  if (/数量/.test(field)) return "例如：A4 纸 2 包、签字笔 10 支";
+  if (/物品|用品|名称/.test(field)) return "例如：A4 纸、签字笔";
+  if (/用途|说明|原因|描述/.test(field)) return "请输入具体用途或背景说明";
+  return `请输入${field}`;
 }
 
 function startEmployeeOaChat(type: "leave" | "reimbursement" | "policy"): void {
@@ -1366,7 +1555,54 @@ function statusLabel(status: string): string {
 function ticketStatusLabel(status: string): string {
   if (status === "NEED_MORE_INFO") return "待补充信息";
   if (status === "READY_TO_SUBMIT") return "可提交服务台";
+  if (status === "SUBMITTED") return "已提交服务台";
   return status;
+}
+
+function ticketSummaryText(ticket: TicketResponse): string {
+  if (ticket.status === "SUBMITTED") {
+    return `工单已提交至${ticket.assigneeGroup}，等待受理。`;
+  }
+  return ticket.missingFields.length > 0
+    ? "工单草稿已生成，补齐信息后即可转交服务台。"
+    : "信息已基本齐全，可转交服务台处理。";
+}
+
+function isTicketSubmitting(ticketId: string): boolean {
+  return submittingTicketIds.value.includes(ticketId);
+}
+
+async function submitTicket(ticket: TicketResponse): Promise<void> {
+  if (ticket.missingFields.length > 0 || ticket.status !== "READY_TO_SUBMIT" || isTicketSubmitting(ticket.ticketId)) {
+    return;
+  }
+  submittingTicketIds.value = [...submittingTicketIds.value, ticket.ticketId];
+  const nextSubmitMessages = { ...ticketSubmitMessages.value };
+  delete nextSubmitMessages[ticket.ticketId];
+  ticketSubmitMessages.value = nextSubmitMessages;
+  try {
+    const result = await submitServiceTicket(ticket);
+    updateTicketMessage(ticket.ticketId, result.ticket);
+    ticketSubmitMessages.value = {
+      ...ticketSubmitMessages.value,
+      [ticket.ticketId]: { type: "success", text: result.message }
+    };
+  } catch (error) {
+    ticketSubmitMessages.value = {
+      ...ticketSubmitMessages.value,
+      [ticket.ticketId]: { type: "error", text: `提交失败：${extractErrorMessage(error)}` }
+    };
+  } finally {
+    submittingTicketIds.value = submittingTicketIds.value.filter((id) => id !== ticket.ticketId);
+  }
+}
+
+function updateTicketMessage(ticketId: string, updatedTicket: TicketResponse): void {
+  const message = [...messages.value].reverse().find((item) => item.ticket?.ticketId === ticketId);
+  if (message) {
+    message.ticket = updatedTicket;
+    message.text = updatedTicket.description;
+  }
 }
 
 function applicationSummary(application: WorkflowApplication): string {
@@ -2507,7 +2743,8 @@ onUnmounted(() => {
 }
 
 .review-dialog,
-.leave-dialog {
+.leave-dialog,
+.ticket-form-dialog {
   width: min(520px, 100%);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 18px;
@@ -2519,7 +2756,9 @@ onUnmounted(() => {
 .review-dialog header,
 .review-dialog footer,
 .leave-dialog header,
-.leave-dialog footer {
+.leave-dialog footer,
+.ticket-form-dialog header,
+.ticket-form-dialog footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2527,7 +2766,8 @@ onUnmounted(() => {
 }
 
 .review-dialog header span,
-.leave-dialog header span {
+.leave-dialog header span,
+.ticket-form-dialog header span {
   display: block;
   color: #60a5fa;
   font-size: 11px;
@@ -2535,11 +2775,25 @@ onUnmounted(() => {
 }
 
 .review-dialog header strong,
-.leave-dialog header strong {
+.leave-dialog header strong,
+.ticket-form-dialog header strong {
   display: block;
   margin-top: 4px;
   color: #f8fafc;
   font-size: 16px;
+}
+
+.ticket-form-dialog {
+  width: min(720px, 100%);
+  max-height: min(82vh, 760px);
+  overflow-y: auto;
+}
+
+.ticket-form-dialog header p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .review-dialog textarea {
@@ -2559,6 +2813,13 @@ onUnmounted(() => {
   margin: 18px 0;
 }
 
+.ticket-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 14px;
+}
+
 .leave-form-grid select {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
@@ -2568,17 +2829,30 @@ onUnmounted(() => {
   outline: none;
 }
 
-.leave-dialog .field {
+.leave-dialog .field,
+.ticket-form-dialog .field {
   margin-bottom: 0;
 }
 
 .leave-reason-field,
-.auto-approve-field {
+.auto-approve-field,
+.ticket-form-field.wide {
   grid-column: 1 / -1;
 }
 
-.leave-reason-field textarea {
+.leave-reason-field textarea,
+.ticket-form-field textarea {
   min-height: 92px;
+}
+
+.ticket-form-error {
+  margin: 0 0 14px;
+  border: 1px solid rgba(248, 113, 113, 0.26);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.22);
+  font-size: 12px;
 }
 
 .auto-approve-field {
@@ -2835,6 +3109,10 @@ onUnmounted(() => {
   }
 
   .leave-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-form-grid {
     grid-template-columns: 1fr;
   }
 }

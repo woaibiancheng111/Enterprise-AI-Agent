@@ -9,7 +9,6 @@ import com.shixi.mcp.KnowledgeBaseTools;
 import com.shixi.mcp.TimeTools;
 import com.shixi.rag.model.SearchResult;
 import com.shixi.rag.service.EnhancedRagService;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -27,6 +26,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
@@ -39,6 +40,9 @@ public class EnterpriseApp {
     private final ChatClient chatClient;
     private final ChatClient chatClientWithTools;
     private final ToolOrchestrationService toolOrchestrationService;
+    private final VectorStore enterpriseAppVectorStore;
+    private final EnhancedRagService enhancedRagService;
+    private static final Pattern TICKET_ID_PATTERN = Pattern.compile("\\bTK-[A-Z]+-\\d{8}-[A-Z0-9]{6}\\b");
     
     private static final List<String> BLOCKED_WORDS = List.of(
             "薪资明细",
@@ -134,9 +138,13 @@ public class EnterpriseApp {
             TimeTools timeTools,
             EmployeeServiceTools employeeServiceTools,
             KnowledgeBaseTools knowledgeBaseTools,
-            ToolOrchestrationService toolOrchestrationService) {
+            ToolOrchestrationService toolOrchestrationService,
+            VectorStore enterpriseAppVectorStore,
+            EnhancedRagService enhancedRagService) {
 
         this.toolOrchestrationService = toolOrchestrationService;
+        this.enterpriseAppVectorStore = enterpriseAppVectorStore;
+        this.enhancedRagService = enhancedRagService;
 
         ChatMemory chatMemory = new FileBasedChatMemory(Path.of("data","chat-memory"));
 
@@ -200,6 +208,25 @@ public class EnterpriseApp {
             List<String> missingFields,
             List<String> actionItems,
             String createdAt) {
+        public EmployeeTicket withStatus(String status) {
+            return new EmployeeTicket(
+                    ticketId,
+                    employeeName,
+                    employeeId,
+                    department,
+                    requirementType,
+                    title,
+                    description,
+                    priority,
+                    status,
+                    assigneeGroup,
+                    sla,
+                    requiredFields,
+                    "SUBMITTED".equals(status) ? List.of() : missingFields,
+                    actionItems,
+                    createdAt
+            );
+        }
     }
 
     record RawEmployeeTicket(String requirementType, String title, String description,
@@ -240,7 +267,7 @@ public class EnterpriseApp {
         String requirementType = defaultText(rawTicket.requirementType(), detectRequirementType(message));
         String priority = normalizePriority(rawTicket.priority(), requirementType, message);
         return new EmployeeTicket(
-                generateTicketId(requirementType),
+                extractTicketId(message).orElseGet(() -> generateTicketId(requirementType)),
                 user.displayName(),
                 user.employeeId(),
                 "待服务台确认",
@@ -256,6 +283,14 @@ public class EnterpriseApp {
                 defaultList(rawTicket.actionItems(), defaultActionItems(requirementType)),
                 LocalDateTime.now().toString()
         );
+    }
+
+    private Optional<String> extractTicketId(String message) {
+        if (message == null) {
+            return Optional.empty();
+        }
+        Matcher matcher = TICKET_ID_PATTERN.matcher(message);
+        return matcher.find() ? Optional.of(matcher.group()) : Optional.empty();
     }
 
     private RawEmployeeTicket fallbackTicket(String message) {
@@ -361,13 +396,6 @@ public class EnterpriseApp {
     private List<String> defaultList(List<String> list, List<String> defaultValue) {
         return list == null || list.isEmpty() ? defaultValue : list;
     }
-
-
-    // 知识库问答功能
-    @Resource
-    private VectorStore enterpriseAppVectorStore;
-    @Resource
-    private com.shixi.rag.service.EnhancedRagService enhancedRagService;
 
     /**
      * 用Rag知识库进行对话

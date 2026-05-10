@@ -77,7 +77,7 @@ public class SearchResult {
                 .sourceType(getMetadataString(metadata, "source", "unknown"))
                 .score(score)
                 .chunkId(doc.getId())
-                .chunkIndex(index)
+                .chunkIndex(getMetadataInt(metadata, "chunkIndex", index))
                 .sourceDocument(doc)
                 .rerankScore(0.0)
                 .highlight(doc.getText().substring(0, Math.min(100, doc.getText().length())))
@@ -106,5 +106,21 @@ public class SearchResult {
         if (metadata == null) return defaultValue;
         Object value = metadata.get(key);
         return value != null ? value.toString() : defaultValue;
+    }
+
+    private static int getMetadataInt(Map<String, Object> metadata, String key, int defaultValue) {
+        if (metadata == null) return defaultValue;
+        Object value = metadata.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value != null) {
+            try {
+                return Integer.parseInt(value.toString());
+            } catch (NumberFormatException ignored) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
     }
 }

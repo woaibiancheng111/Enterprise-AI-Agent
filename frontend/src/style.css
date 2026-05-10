@@ -833,6 +833,60 @@ textarea:focus {
   margin-top: 3px;
 }
 
+.ticket-submit-panel,
+.ticket-submitted-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.24);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.ticket-submit-panel span,
+.ticket-submitted-panel span {
+  display: block;
+  color: #5eead4;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.ticket-submit-panel strong,
+.ticket-submitted-panel strong {
+  display: block;
+  margin-top: 5px;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ticket-submit-panel button {
+  flex: 0 0 auto;
+}
+
+.ticket-submit-message {
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ticket-submit-message.success {
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.18);
+}
+
+.ticket-submit-message.error {
+  border: 1px solid rgba(248, 113, 113, 0.26);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.22);
+}
+
 .message.system {
   align-self: center;
   background: rgba(139, 92, 246, 0.1);
@@ -1018,6 +1072,11 @@ button:not(:disabled):active {
   }
 
   .ticket-next-input {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ticket-submit-panel {
     align-items: stretch;
     flex-direction: column;
   }

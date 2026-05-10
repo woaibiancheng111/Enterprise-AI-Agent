@@ -27,6 +27,13 @@ export interface TicketResponse {
   createdAt: string;
 }
 
+export interface SubmitTicketResponse {
+  success: boolean;
+  message: string;
+  ticket: TicketResponse;
+  submittedAt: string;
+}
+
 export interface SentimentSignal {
   score: number;
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | string;

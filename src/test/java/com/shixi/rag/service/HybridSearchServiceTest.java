@@ -1,5 +1,6 @@
 package com.shixi.rag.service;
 
+import com.shixi.rag.KnowledgeDocumentLoader;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,7 +11,7 @@ import static org.mockito.Mockito.mock;
 
 class HybridSearchServiceTest {
 
-    private final HybridSearchService service = new HybridSearchService(mock(), mock(), mock());
+    private final HybridSearchService service = new HybridSearchService(mock(), mock(KnowledgeDocumentLoader.class));
 
     @Test
     void bm25StatsUseActualAverageDocumentLength() {

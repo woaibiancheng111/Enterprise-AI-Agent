@@ -20,7 +20,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class DocumentUploadService {
 
-    @Value("${knowledge.base-path:src/main/resources/documents}")
+    @Value("${knowledge.base-path:data/documents}")
     private String basePath;
 
     public String getBasePath() {
@@ -126,7 +126,4 @@ public class DocumentUploadService {
         }
     }
 
-    public void reloadVectorStore() {
-        log.info("知识库重新加载信号已发送");
-    }
 }

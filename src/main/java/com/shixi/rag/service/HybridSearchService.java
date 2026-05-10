@@ -1,20 +1,14 @@
 package com.shixi.rag.service;
 
+import com.shixi.rag.KnowledgeDocumentLoader;
 import com.shixi.rag.model.HybridSearchConfig;
 import com.shixi.rag.model.SearchResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -29,20 +23,14 @@ import java.util.stream.Collectors;
 public class HybridSearchService {
 
     private final VectorStore vectorStore;
-    private final EmbeddingModel embeddingModel;
-    private final ResourcePatternResolver resourcePatternResolver;
-
-    @Value("${knowledge.base-path:src/main/resources/documents}")
-    private String basePath;
+    private final KnowledgeDocumentLoader documentLoader;
 
     private final Map<String, List<DocumentContent>> documentCache = new ConcurrentHashMap<>();
     private volatile Bm25Stats bm25Stats = Bm25Stats.empty();
 
-    public HybridSearchService(VectorStore vectorStore, EmbeddingModel embeddingModel,
-                              ResourcePatternResolver resourcePatternResolver) {
+    public HybridSearchService(VectorStore vectorStore, KnowledgeDocumentLoader documentLoader) {
         this.vectorStore = vectorStore;
-        this.embeddingModel = embeddingModel;
-        this.resourcePatternResolver = resourcePatternResolver;
+        this.documentLoader = documentLoader;
     }
 
     /**
@@ -137,11 +125,11 @@ public class HybridSearchService {
             // 计算 BM25 分数
             Map<DocumentEntry, Double> scores = new HashMap<>();
             for (Map.Entry<String, List<DocumentContent>> entry : documentCache.entrySet()) {
-                String fileName = entry.getKey();
+                String documentKey = entry.getKey();
                 for (DocumentContent content : entry.getValue()) {
                     double score = calculateBM25(content.text(), queryTerms, bm25Stats);
                     if (score > 0) {
-                        scores.put(new DocumentEntry(fileName, content.index()), score);
+                        scores.put(new DocumentEntry(documentKey, content.index()), score);
                     }
                 }
             }
@@ -155,8 +143,8 @@ public class HybridSearchService {
                                 .get(e.getKey().index());
                         return SearchResult.builder()
                                 .content(content.text())
-                                .sourceFile(e.getKey().fileName())
-                                .sourceType("bm25")
+                                .sourceFile(documentFileName(e.getKey().fileName()))
+                                .sourceType(documentSource(e.getKey().fileName()))
                                 .score(e.getValue())
                                 .chunkIndex(e.getKey().index())
                                 .highlight(content.text().substring(0, Math.min(100, content.text().length())))
@@ -226,7 +214,7 @@ public class HybridSearchService {
      * 获取结果唯一标识
      */
     private String getResultKey(SearchResult result) {
-        return result.getSourceFile() + ":" + result.getChunkIndex();
+        return documentSource(result) + ":" + result.getSourceFile() + ":" + result.getChunkIndex();
     }
 
     /**
@@ -300,32 +288,14 @@ public class HybridSearchService {
         }
 
         try {
-            // 加载 classpath 中的文档
-            Resource[] resources = resourcePatternResolver.getResources("classpath:documents/*.md");
-            for (Resource resource : resources) {
-                String fileName = resource.getFilename();
-                if (fileName == null) continue;
-
+            for (KnowledgeDocumentLoader.LoadedKnowledgeDocument loadedDocument : documentLoader.loadAll()) {
+                String cacheKey = loadedDocument.source() + ":" + loadedDocument.filename();
                 List<DocumentContent> contents = new ArrayList<>();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder currentChunk = new StringBuilder();
-                    String line;
-                    int index = 0;
-
-                    while ((line = reader.readLine()) != null) {
-                        currentChunk.append(line).append("\n");
-                        // 按段落切分
-                        if (line.trim().isEmpty() && currentChunk.length() > 50) {
-                            contents.add(new DocumentContent(currentChunk.toString().trim(), index++));
-                            currentChunk = new StringBuilder();
-                        }
-                    }
-                    if (currentChunk.length() > 0) {
-                        contents.add(new DocumentContent(currentChunk.toString().trim(), index));
-                    }
+                for (int index = 0; index < loadedDocument.documents().size(); index++) {
+                    Document document = loadedDocument.documents().get(index);
+                    contents.add(new DocumentContent(document.getText(), index));
                 }
-                documentCache.put(fileName, contents);
+                documentCache.put(cacheKey, contents);
             }
             bm25Stats = buildBm25Stats();
 
@@ -381,6 +351,28 @@ public class HybridSearchService {
             }
         }
         return false;
+    }
+
+    private String documentSource(String documentKey) {
+        int separator = documentKey.indexOf(':');
+        return separator > 0 ? documentKey.substring(0, separator) : "unknown";
+    }
+
+    private String documentFileName(String documentKey) {
+        int separator = documentKey.indexOf(':');
+        return separator >= 0 && separator < documentKey.length() - 1
+                ? documentKey.substring(separator + 1)
+                : documentKey;
+    }
+
+    private String documentSource(SearchResult result) {
+        if (result.getSourceDocument() != null && result.getSourceDocument().getMetadata() != null) {
+            Object source = result.getSourceDocument().getMetadata().get(KnowledgeDocumentLoader.METADATA_SOURCE);
+            if (source != null && !source.toString().isBlank()) {
+                return source.toString();
+            }
+        }
+        return result.getSourceType();
     }
 
     record Bm25Stats(int totalDocuments, double avgDocLen, Map<String, Integer> documentFrequency) {

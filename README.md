@@ -45,7 +45,7 @@
 | MCP | Spring AI MCP Server + 本地工具桥接 |
 | 业务数据 | MySQL + MyBatis Plus |
 | 鉴权 | 自定义 JWT + Spring MVC Interceptor |
-| RAG | SimpleVectorStore、动态 BM25、RRF、Rerank、Query Rewrite |
+| RAG | Qdrant、动态 BM25、RRF、Rerank、Query Rewrite |
 | 前端 | Vue 3、Vite、TypeScript、Axios |
 | Markdown 渲染 | marked + DOMPurify |
 | 会话存储 | Kryo 5.6.2 |
@@ -416,7 +416,7 @@ LLM 生成回复
 引用来源 / 流式响应 / 结构化结果
 ```
 
-当前演示环境使用 Spring AI `SimpleVectorStore`，应用启动时会自动扫描 `src/main/resources/documents` 并重建向量索引；BM25 侧会同步加载文档块，动态计算平均文档长度、文档频率和 IDF。生产环境建议将向量存储切换为 Qdrant、Milvus 或 PGVector，避免大规模知识库每次启动都重新构建索引。
+当前环境使用 Spring AI `QdrantVectorStore` 持久化向量索引，应用启动时会自动扫描 `src/main/resources/documents` 与 `knowledge.base-path` 上传目录并同步重建托管文档索引；BM25 侧复用同一套文档加载逻辑，动态计算平均文档长度、文档频率和 IDF。上传、删除和 reload 会同时刷新 Qdrant 与 BM25 缓存。
 
 ---
 
