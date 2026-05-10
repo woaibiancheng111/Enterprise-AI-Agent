@@ -25,7 +25,7 @@
 | 综合办理 | 多 Agent 数字团队入口，自动路由和组合处理复杂事务 |
 | 日常咨询 | 面向 HR、行政、办公场景的通用问答 |
 | 制度查询 | 基于企业知识库进行 RAG 问答，并返回参考来源 |
-| 工单整理 | 将员工诉求整理为结构化 `EmployeeTicket` |
+| 工单整理 | 将员工诉求整理为结构化 `EmployeeTicket`，支持缺失信息表单补充和确认后提交服务台 |
 | 业务工具 | 调用员工、假期、请假、报销、时间计算和知识库工具 |
 | MCP 集成 | 暴露 MCP 状态、工具列表、对话和工具调用接口 |
 | 知识库管理 | 支持文档列表、上传、删除和动态重载 |
@@ -69,9 +69,9 @@
 │   ├── app/
 │   │   └── EnterpriseApp.java             # 核心对话、RAG、工具调用入口
 │   ├── business/
-│   │   ├── entity/                        # 员工、假期、请假、报销实体
+│   │   ├── entity/                        # 员工、假期、请假、报销、服务台工单实体
 │   │   ├── mapper/                        # MyBatis Plus Mapper
-│   │   ├── service/                       # 真实业务数据服务
+│   │   ├── service/                       # 真实业务数据与服务台工单服务
 │   ├── agent/
 │   │   ├── DigitalTeamService.java        # 数字团队编排
 │   │   ├── McpIntegrationService.java     # MCP 集成服务
@@ -108,6 +108,8 @@
 - Node.js 18+
 - npm 9+
 - 阿里云 DashScope API Key（[获取地址](https://dashscope.console.aliyun.com/)）
+- MySQL 8.x
+- Qdrant 1.9+（本地非 Docker 启动时需要监听 `localhost:6334`；Docker Compose 会自动启动）
 
 ### 后端配置
 
@@ -143,6 +145,13 @@ CREATE DATABASE enterprise_ai_agent
 
 ```yaml
 spring:
+  ai:
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_PORT:6334}
+        collection-name: ${QDRANT_COLLECTION_NAME:enterprise-knowledge}
+        initialize-schema: true
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/enterprise_ai_agent?serverTimezone=Asia/Shanghai&useSSL=false}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -156,19 +165,20 @@ enterprise:
       ttl-seconds: 86400
 ```
 
-本地演示可以使用默认数据库账号；正式部署必须通过环境变量覆盖 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和 `JWT_SECRET`。
+本地演示可以使用默认数据库账号；正式部署必须通过环境变量覆盖 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和 `JWT_SECRET`。Qdrant 默认使用 gRPC 端口 `6334`，Docker Compose 环境会把 `QDRANT_HOST` 设置为内部服务名 `qdrant`。
 
 启动应用时，Spring Boot 会自动执行 `schema.sql` 和 `data.sql`：
 
-- `schema.sql`：创建员工、登录账号、假期、请假、报销和工具审计表。
+- `schema.sql`：创建员工、登录账号、假期、请假、报销、服务台工单和工具审计表。
 - `data.sql`：使用 `INSERT IGNORE` 初始化演示员工、登录账号和假期余额，不覆盖已有数据。
 
 因此推荐流程是：
 
 ```text
 1. 手动创建 enterprise_ai_agent 数据库
-2. 启动后端应用
-3. 应用自动建表并写入初始化数据
+2. 启动 Qdrant（或使用 Docker Compose）
+3. 启动后端应用
+4. 应用自动建表并写入初始化数据
 ```
 
 如果你想手动执行 SQL，也可以在创建数据库后执行：
@@ -242,6 +252,7 @@ VITE_API_BASE_PATH=/api
 - 登录页、当前账号展示和退出登录。
 - 消息区 Markdown 渲染与安全过滤。
 - 支持 SSE 流式回答。
+- 工单卡片支持缺失字段表单补充，信息齐全后可一键提交服务台。
 - 参考来源折叠卡片，点击展开，再次点击收起。
 - MCP 服务状态和工具数量展示。
 - 知识库文档上传、删除和刷新。
@@ -272,6 +283,7 @@ Authorization: Bearer <token>
 | POST | `/api/enterprise/chat` | 基础对话（含记忆） |
 | POST | `/api/enterprise/rag-chat` | 知识库增强对话 |
 | POST | `/api/enterprise/ticket` | 生成结构化工单 |
+| POST | `/api/enterprise/ticket/submit` | 将信息齐全的结构化工单提交至服务台并落库 |
 | POST | `/api/enterprise/team-chat` | 数字团队综合办理 |
 | POST | `/api/enterprise/tool-chat` | 企业业务工具对话 |
 | GET | `/api/enterprise/chat/stream` | 基础流式对话 |
@@ -370,6 +382,17 @@ curl -X POST "http://localhost:8123/api/enterprise/rag-chat" \
   -H "Authorization: Bearer <token>" \
   -d "{\"message\":\"如何申请年假\",\"chatId\":\"demo\"}"
 
+# 生成并提交服务台工单
+curl -X POST "http://localhost:8123/api/enterprise/ticket" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"message\":\"报销单 R1001 金额 500 元，发票已上传但状态无响应\",\"chatId\":\"demo\"}"
+
+curl -X POST "http://localhost:8123/api/enterprise/ticket/submit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d "{\"ticketId\":\"TK-REIM-20260510-ABC123\",\"employeeName\":\"张三\",\"employeeId\":\"E001\",\"department\":\"技术部\",\"requirementType\":\"报销异常\",\"title\":\"报销异常处理\",\"description\":\"报销单 R1001 金额 500 元，发票已上传但状态无响应\",\"priority\":\"P2\",\"status\":\"READY_TO_SUBMIT\",\"assigneeGroup\":\"财务服务台\",\"sla\":\"1 个工作日内响应\",\"requiredFields\":[\"报销类型\",\"金额\",\"费用日期\",\"发票或凭证\",\"说明\"],\"missingFields\":[],\"actionItems\":[\"确认报销类型和金额\",\"核对发票或凭证\",\"提交财务服务台\",\"同步处理进度\"],\"createdAt\":\"2026-05-10T14:55:00\"}"
+
 # 上传知识库文档
 curl -X POST "http://localhost:8123/api/knowledge/upload" \
   -H "Authorization: Bearer <token>" \
@@ -416,7 +439,7 @@ LLM 生成回复
 引用来源 / 流式响应 / 结构化结果
 ```
 
-当前环境使用 Spring AI `QdrantVectorStore` 持久化向量索引，应用启动时会自动扫描 `src/main/resources/documents` 与 `knowledge.base-path` 上传目录并同步重建托管文档索引；BM25 侧复用同一套文档加载逻辑，动态计算平均文档长度、文档频率和 IDF。上传、删除和 reload 会同时刷新 Qdrant 与 BM25 缓存。
+当前环境使用 Spring AI `QdrantVectorStore` 持久化向量索引，应用启动时会自动扫描预置知识库目录 `src/main/resources/documents` 与上传文档目录 `knowledge.base-path`（默认 `data/documents`），并同步重建托管文档索引；BM25 侧复用同一套文档加载逻辑，动态计算平均文档长度、文档频率和 IDF。上传、删除和 reload 会同时刷新 Qdrant 与 BM25 缓存。
 
 ---
 
@@ -437,7 +460,7 @@ LLM 生成回复
 
 ## 业务数据持久化
 
-第一阶段已将员工、假期、请假和报销从内存模拟数据迁移到数据库：
+已将员工、假期、请假、报销和服务台工单从内存模拟数据迁移到数据库：
 
 | 数据 | 存储表 | 说明 |
 |------|--------|------|
@@ -445,6 +468,7 @@ LLM 生成回复
 | 假期余额 | `leave_balances` | 年假、病假、婚假、产假余额 |
 | 请假申请 | `leave_applications` | 申请编号、员工、假期类型、起止日期、状态、审批人、审批意见、审批时间 |
 | 报销申请 | `reimbursement_applications` | 申请编号、员工、类型、金额、发票号、状态、审批人、审批意见、审批时间 |
+| 服务台工单 | `service_tickets` | 工单编号、员工、诉求类型、标题、优先级、受理组、SLA、提交人、提交时间、状态 |
 | 登录账号 | `employee_users` | 用户名、密码摘要、关联员工、展示名、角色、启用状态 |
 | 工具审计 | `tool_call_logs` | 工具名称、调用参数、目标员工、结果摘要、成功状态、调用时间 |
 
@@ -459,6 +483,8 @@ EmployeeServiceTools
 
 MySQL 数据库 `enterprise_ai_agent` 需要先手动创建；表结构由 `schema.sql` 创建，初始化数据由 `data.sql` 写入。后续通过工具提交的请假、报销申请会真实写入 MySQL，应用重启后仍可查询。
 
+工单链路分为两步：`POST /api/enterprise/ticket` 只生成结构化草稿，不执行真实业务；当前端补齐缺失字段并点击“提交服务台”后，`POST /api/enterprise/ticket/submit` 会把状态为 `READY_TO_SUBMIT` 的工单写入 `service_tickets`，返回 `SUBMITTED` 状态，并同步写入 `tool_call_logs` 审计记录。
+
 应用启动时会自动检查并补齐审批字段：
 
 ```text
@@ -467,7 +493,7 @@ review_comment
 reviewed_at
 ```
 
-工具调用审计已接入员工服务工具，每次查询员工、查询假期、提交请假、提交报销或查询申请状态都会写入 `tool_call_logs`。后端提供审计查询接口：
+工具调用审计已接入员工服务工具和服务台工单提交，每次查询员工、查询假期、提交请假、提交报销、提交服务台工单或查询申请状态都会写入 `tool_call_logs`。后端提供审计查询接口：
 
 ```text
 GET /api/audit/tool-calls
@@ -479,6 +505,7 @@ GET /api/audit/tool-calls?toolName=applyLeave&limit=20
 
 - `EMPLOYEE` 只能访问自己绑定员工编号的数据，例如 `zhangsan` 只能访问 `E001`。
 - `HR` 和 `ADMIN` 可以访问所有员工业务数据，并审批请假/报销申请。
+- 服务台工单提交遵循员工数据权限：员工只能提交自己名下工单，`HR` 和 `ADMIN` 可以代提交。
 - 工具审计日志仅允许 `HR` 和 `ADMIN` 查询。
 - 审计日志会记录真实调用账号的 `user_id`，不再固定为 `system`。
 - 非 `PENDING` 状态申请不能重复审批。
